@@ -37,10 +37,13 @@ function computeVM(c: Course, records: AbsenceRecord[]): CourseVM {
   return { ...c, used, remaining, ratio, warn: ratio >= 0.7, warnClass: ratio >= 1 ? "high" : "mid" };
 }
 
+const BUILD_TAG = "b4"; // görünür sürüm etiketi (giriş sorununu teşhis için)
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [screen, setScreen] = useState<Screen>("login");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [homeTab, setHomeTab] = useState<"active" | "past">("active");
 
   const [activeVMs, setActiveVMs] = useState<CourseVM[]>([]);
@@ -229,9 +232,12 @@ export default function App() {
       setScreen("guestName");
       return;
     }
+    // Immediate visible feedback so we can tell "handler didn't fire" apart
+    // from "redirect didn't happen".
+    setAuthError(lang === "tr" ? "Google'a bağlanılıyor…" : "Connecting to Google…");
     const client = supabase();
     if (!client) {
-      showToast(t.notifDemoTitle, lang === "tr" ? "Bağlantı kurulamadı." : "Could not connect.");
+      setAuthError(lang === "tr" ? "Bağlantı kurulamadı (yapılandırma yok)." : "Could not connect (no config).");
       return;
     }
     try {
@@ -246,16 +252,17 @@ export default function App() {
         },
       });
       if (error) {
-        showToast(t.notifDemoTitle, (lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + error.message);
+        setAuthError((lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + error.message);
         return;
       }
       if (data?.url) {
-        window.location.assign(data.url);
+        setAuthError(lang === "tr" ? "Yönlendiriliyor…" : "Redirecting…");
+        window.location.href = data.url;
       } else {
-        showToast(t.notifDemoTitle, lang === "tr" ? "Giriş adresi alınamadı." : "No sign-in URL.");
+        setAuthError(lang === "tr" ? "Giriş adresi alınamadı." : "No sign-in URL.");
       }
     } catch (e) {
-      showToast(t.notifDemoTitle, (lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + String(e));
+      setAuthError((lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + String(e));
     }
   };
 
@@ -539,6 +546,12 @@ export default function App() {
             <GoogleIcon />
             {t.googleLogin}
           </button>
+          {authError && (
+            <div className="info-box" style={{ borderColor: "var(--danger)" }}>
+              <span className="info-icon" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>!</span>
+              <span>{authError}</span>
+            </div>
+          )}
           <div className="divider">{t.or}</div>
           <button className="btn-guest-soft" onClick={loginGuest}>
             <PersonIcon />
@@ -548,6 +561,7 @@ export default function App() {
             <span className="info-icon">i</span>
             <span>{t.guestInfo}</span>
           </div>
+          <div className="hint">sürüm {BUILD_TAG}</div>
         </div>
       </div>
     );
