@@ -113,6 +113,7 @@ export default function App() {
   // ---- init ---------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
+    let authSub: { unsubscribe: () => void } | null = null;
     (async () => {
       await registerServiceWorker();
       const s = await repo.getSettings();
@@ -120,18 +121,44 @@ export default function App() {
       setSettings(s);
       setNotifPerm(notificationsSupported() ? notifPermission() : "denied");
 
-      // restore session if signed in
+      // Google OAuth: the session is established asynchronously when we return
+      // from Google (PKCE code exchange). Listen for it and route into the app
+      // once it lands — otherwise we'd fall back to the login screen too early.
       if (isCloudEnabled()) {
         const client = supabase();
-        const { data } = (await client?.auth.getSession()) ?? { data: { session: null } };
-        const session = data?.session;
-        if (session?.user) {
-          const name =
-            (session.user.user_metadata?.full_name as string) ||
-            (session.user.user_metadata?.name as string) ||
-            session.user.email ||
-            null;
-          await repo.migrateGuestToAccount(session.user.id, name);
+        if (client) {
+          const res = client.auth.onAuthStateChange((event, session) => {
+            if (!session?.user) return;
+            const u = session.user;
+            const name =
+              (u.user_metadata?.full_name as string) ||
+              (u.user_metadata?.name as string) ||
+              u.email ||
+              null;
+            // Defer the actual work so we never call supabase methods
+            // synchronously inside this callback (avoids SDK deadlocks).
+            setTimeout(async () => {
+              if (cancelled) return;
+              if (event === "SIGNED_IN") {
+                await repo.migrateGuestToAccount(u.id, name);
+                try {
+                  window.history.replaceState({}, "", window.location.pathname);
+                } catch {
+                  /* ignore */
+                }
+              } else {
+                await repo.patchSettings({ isGuest: false, userId: u.id, userName: name });
+              }
+              await reload();
+              if (cancelled) return;
+              setScreen("home");
+              setReady(true);
+              if (event === "SIGNED_IN") showToast(t.notifDemoTitle, t.welcome(name || ""));
+              void flushSyncQueue();
+              void pullRemote();
+            }, 0);
+          });
+          authSub = res.data.subscription;
         }
       }
 
@@ -146,6 +173,7 @@ export default function App() {
     })();
     return () => {
       cancelled = true;
+      authSub?.unsubscribe?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
