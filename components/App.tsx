@@ -37,13 +37,14 @@ function computeVM(c: Course, records: AbsenceRecord[]): CourseVM {
   return { ...c, used, remaining, ratio, warn: ratio >= 0.7, warnClass: ratio >= 1 ? "high" : "mid" };
 }
 
-const BUILD_TAG = "b4"; // görünür sürüm etiketi (giriş sorununu teşhis için)
+const BUILD_TAG = "b5"; // görünür sürüm etiketi (giriş sorununu teşhis için)
 
 export default function App() {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [screen, setScreen] = useState<Screen>("login");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [oauthUrl, setOauthUrl] = useState<string | null>(null);
   const [homeTab, setHomeTab] = useState<"active" | "past">("active");
 
   const [activeVMs, setActiveVMs] = useState<CourseVM[]>([]);
@@ -256,6 +257,10 @@ export default function App() {
         return;
       }
       if (data?.url) {
+        // Show a real, tappable link as a fallback: some Android browsers block
+        // the programmatic navigation that happens after an await (it's no
+        // longer a "user gesture"). Tapping an <a> is always allowed.
+        setOauthUrl(data.url);
         setAuthError(lang === "tr" ? "Yönlendiriliyor…" : "Redirecting…");
         window.location.href = data.url;
       } else {
@@ -546,6 +551,16 @@ export default function App() {
             <GoogleIcon />
             {t.googleLogin}
           </button>
+          {oauthUrl && (
+            <a
+              className="btn-primary"
+              href={oauthUrl}
+              rel="noopener"
+              style={{ textAlign: "center", textDecoration: "none" }}
+            >
+              {lang === "tr" ? "Google'a devam et →" : "Continue to Google →"}
+            </a>
+          )}
           {authError && (
             <div className="info-box" style={{ borderColor: "var(--danger)" }}>
               <span className="info-icon" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>!</span>
