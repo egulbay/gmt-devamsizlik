@@ -1,0 +1,26 @@
+{
+  "name": "GMT Devamsızlık Takip",
+  "short_name": "GMT Devamsızlık",
+  "description": "Üniversite ders devamsızlıklarını kolayca takip et.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAFAF7",
+  "theme_color": "#FF5A1F",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "/icons/gmt-logo-mark.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/gmt-logo-mark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

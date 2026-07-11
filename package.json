@@ -1,0 +1,25 @@
+{
+  "name": "gmt-devamsizlik",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GMT Devamsızlık Takip — offline-first PWA for tracking university course absences.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dexie": "^4.0.8",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
