@@ -221,19 +221,42 @@ export default function App() {
 
   // ---- auth / entry -------------------------------------------------------
   const loginGoogle = async () => {
-    if (isCloudEnabled()) {
-      const client = supabase();
-      await client?.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
-      });
+    if (!isCloudEnabled()) {
+      // Cloud not configured → continue locally; still ask for a name.
+      showToast(t.notifDemoTitle, lang === "tr"
+        ? "Bulut yapılandırılmadı — yerel olarak devam ediliyor."
+        : "Cloud not configured — continuing locally.");
+      setScreen("guestName");
       return;
     }
-    // Cloud not configured → continue locally; still ask for a name.
-    showToast(t.notifDemoTitle, lang === "tr"
-      ? "Bulut yapılandırılmadı — yerel olarak devam ediliyor."
-      : "Cloud not configured — continuing locally.");
-    setScreen("guestName");
+    const client = supabase();
+    if (!client) {
+      showToast(t.notifDemoTitle, lang === "tr" ? "Bağlantı kurulamadı." : "Could not connect.");
+      return;
+    }
+    try {
+      // Drive the redirect ourselves (skipBrowserRedirect) — some Android
+      // browsers/webviews don't fire the SDK's automatic redirect, which looks
+      // like "the button does nothing".
+      const { data, error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) {
+        showToast(t.notifDemoTitle, (lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + error.message);
+        return;
+      }
+      if (data?.url) {
+        window.location.assign(data.url);
+      } else {
+        showToast(t.notifDemoTitle, lang === "tr" ? "Giriş adresi alınamadı." : "No sign-in URL.");
+      }
+    } catch (e) {
+      showToast(t.notifDemoTitle, (lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + String(e));
+    }
   };
 
   const loginGuest = () => setScreen("guestName");
