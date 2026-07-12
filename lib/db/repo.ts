@@ -73,6 +73,16 @@ export async function ensureActiveSemester(): Promise<Semester> {
     const found = await db().semesters.get(s.activeSemesterId);
     if (found && !found.deleted) return found;
   }
+  // activeSemesterId is device-local and never comes from the cloud. If it's
+  // missing/stale (e.g. right after a reinstall + sign-in, before this device
+  // has one recorded) but an active semester already exists locally — most
+  // likely just pulled down from Supabase — adopt it instead of fabricating a
+  // second "phantom" active semester that would orphan the real courses.
+  const existingActive = (await db().semesters.toArray()).find((x) => x.active && !x.deleted);
+  if (existingActive) {
+    await patchSettings({ activeSemesterId: existingActive.id });
+    return existingActive;
+  }
   // Create a default active semester.
   const now = Date.now();
   const clientId = await getClientId();

@@ -171,13 +171,19 @@ export default function App() {
         } else {
           await repo.patchSettings({ isGuest: false, userId: u.id, userName: name });
         }
+        // Pull down any existing cloud data BEFORE the first reload(). reload()
+        // derives the active semester locally (ensureActiveSemester), and on a
+        // fresh device that local state doesn't know about a semester that
+        // only exists in the cloud yet — pulling first means it's already in
+        // IndexedDB by the time that derivation runs, instead of a race that
+        // orphans previously-synced courses under a freshly-fabricated semester.
+        await flushSyncQueue();
+        await pullRemote();
         await reload();
         if (cancelled) return;
         setScreen("home");
         setReady(true);
         if (isFreshSignIn) showToast(t.notifDemoTitle, t.welcome(name || ""));
-        void flushSyncQueue();
-        void pullRemote();
       };
 
       if (isCloudEnabled()) {
