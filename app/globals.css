@@ -290,7 +290,8 @@ a {
 .fab {
   position: fixed;
   bottom: max(26px, env(safe-area-inset-bottom));
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -306,10 +307,6 @@ a {
   justify-content: center;
 }
 .thm-dark .fab { background: #ff6a2e; box-shadow: 0 10px 24px rgba(255, 106, 46, 0.45); }
-/* Keep FAB inside the phone column on wide screens */
-@media (min-width: 480px) {
-  .fab { right: calc(50% - 220px + 20px); }
-}
 
 /* ---- Empty state ---- */
 .empty-state {

@@ -722,7 +722,6 @@ export default function App() {
             <div className="fs13 sub">{t.emptyDesc}</div>
             <button className="btn-primary" onClick={openAddCourse}>{t.addCourseBtn}</button>
           </div>
-          <button className="fab" onClick={openAddCourse} aria-label="add">＋</button>
         </>
       );
     }
@@ -757,7 +756,7 @@ export default function App() {
           ))}
         </div>
 
-        <div className="stack mt8">
+        <div className="stack mt8" style={{ marginBottom: 76 }}>
           <button className="btn-ghost" onClick={() => setExportSheet({ scope: "all" })}>
             <ShareIcon /> {t.exportShare}
           </button>

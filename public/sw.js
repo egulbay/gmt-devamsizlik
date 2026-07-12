@@ -3,7 +3,7 @@
  * - Background Sync tetikleyicisi (client'a mesaj gönderir)
  * - Web Push bildirimleri
  */
-const CACHE = "gmt-cache-v11";
+const CACHE = "gmt-cache-v12";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/gmt-logo-mark.png"];
 
 self.addEventListener("install", (event) => {
@@ -33,8 +33,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req, { cache: "no-store" })
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          }
           return res;
         })
         .catch(() => caches.match(req).then((r) => r || caches.match("/")))
@@ -46,8 +48,12 @@ self.addEventListener("fetch", (event) => {
     caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        // Never cache error responses (404/5xx) — a transient server hiccup
+        // would otherwise get poisoned into the cache permanently.
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
         return res;
       });
     })
