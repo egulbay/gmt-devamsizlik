@@ -37,14 +37,11 @@ function computeVM(c: Course, records: AbsenceRecord[]): CourseVM {
   return { ...c, used, remaining, ratio, warn: ratio >= 0.7, warnClass: ratio >= 1 ? "high" : "mid" };
 }
 
-const BUILD_TAG = "b6"; // görünür sürüm etiketi (giriş sorununu teşhis için)
-
 export default function App() {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [screen, setScreen] = useState<Screen>("login");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [oauthUrl, setOauthUrl] = useState<string | null>(null);
   const [homeTab, setHomeTab] = useState<"active" | "past">("active");
 
   const [activeVMs, setActiveVMs] = useState<CourseVM[]>([]);
@@ -124,6 +121,26 @@ export default function App() {
       if (cancelled) return;
       setSettings(s);
       setNotifPerm(notificationsSupported() ? notifPermission() : "denied");
+
+      // If we just landed back from Google/Supabase with an error (e.g. a
+      // misconfigured redirect URL, a cancelled consent, or a mismatched
+      // client), surface it instead of silently falling back to the login
+      // screen — that silence is what made this impossible to diagnose.
+      try {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const qs = new URLSearchParams(window.location.search);
+        const errDesc =
+          hash.get("error_description") ||
+          qs.get("error_description") ||
+          hash.get("error") ||
+          qs.get("error");
+        if (errDesc) {
+          setAuthError(decodeURIComponent(errDesc).replace(/\+/g, " "));
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+      } catch {
+        /* ignore */
+      }
 
       // Google OAuth: the session is established asynchronously when we return
       // from Google (PKCE code exchange). Listen for it and route into the app
@@ -233,43 +250,22 @@ export default function App() {
       setScreen("guestName");
       return;
     }
-    // Immediate visible feedback so we can tell "handler didn't fire" apart
-    // from "redirect didn't happen".
-    setAuthError(lang === "tr" ? "Google'a bağlanılıyor…" : "Connecting to Google…");
+    setAuthError(null);
     const client = supabase();
     if (!client) {
       setAuthError(lang === "tr" ? "Bağlantı kurulamadı (yapılandırma yok)." : "Could not connect (no config).");
       return;
     }
     try {
-      // Drive the redirect ourselves (skipBrowserRedirect) — some Android
-      // browsers/webviews don't fire the SDK's automatic redirect, which looks
-      // like "the button does nothing".
-      const { data, error } = await client.auth.signInWithOAuth({
+      // Standard flow: let the SDK perform the redirect itself. This is the
+      // documented, most broadly-compatible path — it's what supabase-js does
+      // internally in every framework's official example.
+      const { error } = await client.auth.signInWithOAuth({
         provider: "google",
-        options: {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          skipBrowserRedirect: true,
-        },
+        options: { redirectTo: window.location.origin },
       });
       if (error) {
         setAuthError((lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + error.message);
-        return;
-      }
-      if (data?.url) {
-        // Do NOT auto-navigate here: on some Android browsers the programmatic
-        // navigation after an await is blocked, and worse, starting it wipes
-        // the page for an instant. Instead we render a real, tappable link and
-        // let the user tap it — that's a genuine user gesture the browser
-        // always honours.
-        setOauthUrl(data.url);
-        setAuthError(
-          lang === "tr"
-            ? "Aşağıdaki turuncu düğmeye bas 👇"
-            : "Tap the orange button below 👇"
-        );
-      } else {
-        setAuthError(lang === "tr" ? "Giriş adresi alınamadı." : "No sign-in URL.");
       }
     } catch (e) {
       setAuthError((lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + String(e));
@@ -557,20 +553,10 @@ export default function App() {
             {t.googleLogin}
           </button>
           {authError && (
-            <div className="info-box" style={{ borderColor: "var(--accent)" }}>
-              <span className="info-icon">!</span>
+            <div className="info-box" style={{ borderColor: "var(--danger)" }}>
+              <span className="info-icon" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>!</span>
               <span>{authError}</span>
             </div>
-          )}
-          {oauthUrl && (
-            <a
-              className="btn-primary"
-              href={oauthUrl}
-              rel="noopener"
-              style={{ textAlign: "center", textDecoration: "none", fontSize: 16 }}
-            >
-              {lang === "tr" ? "Google'a devam et →" : "Continue to Google →"}
-            </a>
           )}
           <div className="divider">{t.or}</div>
           <button className="btn-guest-soft" onClick={loginGuest}>
@@ -581,7 +567,6 @@ export default function App() {
             <span className="info-icon">i</span>
             <span>{t.guestInfo}</span>
           </div>
-          <div className="hint">sürüm {BUILD_TAG}</div>
         </div>
       </div>
     );

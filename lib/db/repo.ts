@@ -19,11 +19,10 @@ export async function getSettings(): Promise<Settings> {
   const fresh: Settings = {
     key: SETTINGS_KEY,
     lang: "tr",
-    theme:
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light",
+    // Always boot in light theme, regardless of the device's system color
+    // scheme. The user can switch to dark manually; that choice is what
+    // persists (in IndexedDB, not localStorage).
+    theme: "light",
     userName: null,
     isGuest: false,
     userId: null,

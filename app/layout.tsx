@@ -38,14 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
           rel="stylesheet"
         />
-        {/* Pre-paint: default to system color scheme (no localStorage — user data
-            lives only in IndexedDB per spec). The app re-applies the saved
-            preference from IndexedDB on mount. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{if(window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dark';}}catch(e){}`,
-          }}
-        />
+        {/* App always boots in light theme first paint, regardless of the
+            device's system color scheme. The user's saved preference (stored
+            in IndexedDB, not localStorage) is applied after mount if it's
+            dark — see the theme-apply effect in components/App.tsx. */}
       </head>
       <body>{children}</body>
     </html>
