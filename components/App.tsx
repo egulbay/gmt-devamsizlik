@@ -66,7 +66,12 @@ export default function App() {
   const [dayPopover, setDayPopover] = useState<{ date: string; hours: number; recordId?: string } | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
   const [clearRecordsConfirm, setClearRecordsConfirm] = useState(false);
-  const [deleteCourseConfirm, setDeleteCourseConfirm] = useState(false);
+  // Course pending deletion (its id), shown via a confirm sheet. Set from the
+  // detail edit-sheet OR from long-press "jiggle" mode on the home list.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // iOS-style edit mode: long-press a course card to make the list jiggle and
+  // reveal a delete (×) badge on each card.
+  const [jiggle, setJiggle] = useState(false);
   const [semesterSheet, setSemesterSheet] = useState(false);
   const [semesterName, setSemesterName] = useState("");
   const [exportSheet, setExportSheet] = useState<{ scope: "course" | "all" } | null>(null);
@@ -371,12 +376,17 @@ export default function App() {
     await reload();
   };
   const doDeleteCourse = async () => {
-    if (!selectedCourseId) return;
-    await repo.deleteCourse(selectedCourseId);
-    setDeleteCourseConfirm(false);
+    const id = pendingDeleteId;
+    if (!id) return;
+    await repo.deleteCourse(id);
+    setPendingDeleteId(null);
     setCourseSheet(null);
-    setSelectedCourseId(null);
-    setScreen("home");
+    setJiggle(false);
+    // If we were viewing this course's detail, return home.
+    if (selectedCourseId === id) {
+      setSelectedCourseId(null);
+      setScreen("home");
+    }
     await reload();
   };
 
@@ -758,9 +768,24 @@ export default function App() {
           </div>
         )}
 
+        {jiggle && (
+          <div className="jiggle-hint">
+            <button className="link-btn" onClick={() => setJiggle(false)}>{t.doneEditing}</button>
+          </div>
+        )}
+
         <div className="course-list">
           {visibleCourses.map((c) => (
-            <CourseCard key={c.id} c={c} onClick={() => openCourse(c.id)} dark={theme === "dark"} t={t} />
+            <CourseCard
+              key={c.id}
+              c={c}
+              onClick={() => (jiggle ? setJiggle(false) : openCourse(c.id))}
+              onLongPress={() => setJiggle(true)}
+              onDelete={() => setPendingDeleteId(c.id)}
+              jiggle={jiggle}
+              dark={theme === "dark"}
+              t={t}
+            />
           ))}
         </div>
 
@@ -918,7 +943,7 @@ export default function App() {
               {courseSheet.editId && (
                 <button
                   className="btn-reset"
-                  onClick={() => setDeleteCourseConfirm(true)}
+                  onClick={() => setPendingDeleteId(courseSheet.editId)}
                 >
                   <TrashIcon /> {t.deleteCourse}
                 </button>
@@ -949,13 +974,13 @@ export default function App() {
             onConfirm={doClearRecords}
           />
         )}
-        {deleteCourseConfirm && (
+        {pendingDeleteId && (
           <ConfirmSheet
-            title={t.deleteCourse}
+            title={t.deleteCourseTitle}
             desc={t.deleteCourseConfirm}
             cancel={t.no}
             confirm={t.yes}
-            onCancel={() => setDeleteCourseConfirm(false)}
+            onCancel={() => setPendingDeleteId(null)}
             onConfirm={doDeleteCourse}
           />
         )}
@@ -1042,19 +1067,99 @@ export default function App() {
 function CourseCard({
   c,
   onClick,
+  onLongPress,
+  onDelete,
+  jiggle,
   archived,
   dark,
   t,
 }: {
   c: CourseVM;
   onClick: () => void;
+  onLongPress?: () => void;
+  onDelete?: () => void;
+  jiggle?: boolean;
   archived?: boolean;
   dark: boolean;
   t: ReturnType<typeof tf>;
 }) {
   const pct = Math.min(100, Math.round(c.ratio * 100));
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  // True once a long-press fired, so the trailing click doesn't also open the
+  // course detail.
+  const longFired = useRef(false);
+
+  const clearTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (archived || !onLongPress) return;
+    // Ignore the × badge's own pointer.
+    if ((e.target as HTMLElement).closest(".cc-del")) return;
+    longFired.current = false;
+    start.current = { x: e.clientX, y: e.clientY };
+    clearTimer();
+    timer.current = setTimeout(() => {
+      longFired.current = true;
+      // Haptic feedback where supported (Android/Chrome). iOS ignores it.
+      try {
+        navigator.vibrate?.(15);
+      } catch {
+        /* ignore */
+      }
+      onLongPress();
+    }, 450);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const dx = Math.abs(e.clientX - start.current.x);
+    const dy = Math.abs(e.clientY - start.current.y);
+    // A scroll/drag cancels the pending long-press.
+    if (dx > 10 || dy > 10) clearTimer();
+  };
+  const endPress = () => {
+    clearTimer();
+    start.current = null;
+  };
+  const handleClick = () => {
+    if (longFired.current) {
+      // Consume the click that follows a long-press.
+      longFired.current = false;
+      return;
+    }
+    onClick();
+  };
+
   return (
-    <div className={`course-card${archived ? " archived" : ""}`} onClick={onClick}>
+    <div
+      className={`course-card${archived ? " archived" : ""}${jiggle ? " jiggling" : ""}`}
+      onClick={handleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endPress}
+      onPointerCancel={endPress}
+      onContextMenu={(e) => {
+        // Suppress the long-press context menu on mobile while in this mode.
+        if (onLongPress) e.preventDefault();
+      }}
+    >
+      {jiggle && !archived && (
+        <button
+          className="cc-del"
+          aria-label={t.deleteCourse}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete?.();
+          }}
+        >
+          ×
+        </button>
+      )}
       <div className="cc-top">
         <span className="fw7 fs16">{c.name}</span>
         {c.warn && <span className={`warn-badge ${c.warnClass}`}>!</span>}

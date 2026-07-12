@@ -46,6 +46,8 @@ export const TXT = {
     save: "Kaydet",
     deleteCourse: "Dersi Sil",
     deleteCourseConfirm: "Bu ders ve tüm devamsızlık kayıtları silinecek. Emin misiniz?",
+    deleteCourseTitle: "Bu dersi silmek istiyor musunuz?",
+    doneEditing: "Bitti",
     // detail
     remaining: "Kalan Hak",
     used: "Kullanılan",
@@ -136,6 +138,8 @@ export const TXT = {
     save: "Save",
     deleteCourse: "Delete Course",
     deleteCourseConfirm: "This course and all its absence records will be deleted. Are you sure?",
+    deleteCourseTitle: "Delete this course?",
+    doneEditing: "Done",
     remaining: "Remaining",
     used: "Used",
     records: "Absence Records",
