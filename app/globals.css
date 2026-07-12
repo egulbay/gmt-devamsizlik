@@ -279,35 +279,76 @@ a {
 
 .cc-del {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 26px;
-  height: 26px;
+  top: -9px;
+  right: -9px;
+  width: 25px;
+  height: 25px;
   border-radius: 50%;
-  border: 2px solid var(--surface);
-  background: var(--warn-high);
+  border: 2.5px solid var(--surface);
+  background: var(--danger);
   color: #fff;
-  font-size: 18px;
-  line-height: 1;
-  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   z-index: 5;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  animation: cc-del-pop 0.18s ease-out;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  animation: cc-del-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+.cc-del svg { display: block; }
 @keyframes cc-del-pop {
-  from { transform: scale(0); }
-  to   { transform: scale(1); }
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
-.jiggle-hint {
+/* Round selection checkbox shown in edit mode, left of the course name. */
+.cc-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: #fff;
   display: flex;
-  justify-content: flex-end;
-  margin: 2px 0 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
+.cc-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.cc-check svg { display: block; }
+
+.course-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+
+/* ---- Long-press edit mode bar (Active + Past tabs) ---- */
+.edit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 2px 0 6px;
+  min-height: 30px;
+}
+.btn-danger-sm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1.5px solid var(--danger);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.btn-danger-sm .ico-trash { width: 14px; height: 14px; }
 .cc-top {
   display: flex;
   align-items: center;
@@ -672,6 +713,30 @@ a {
 }
 .stepper .hours-val { flex: 1; text-align: center; font-size: 20px; font-weight: 800; }
 .range-input { width: 100%; accent-color: var(--accent); }
+
+/* ---- Info sheet (login screen) ---- */
+.info-sheet { max-height: 82vh; overflow-y: auto; }
+.info-tips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.info-tips li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.info-tip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
 
 /* ---- Toast ---- */
 .notif-toast {

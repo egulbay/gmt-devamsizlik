@@ -48,6 +48,11 @@ export const TXT = {
     deleteCourseConfirm: "Bu ders ve tüm devamsızlık kayıtları silinecek. Emin misiniz?",
     deleteCourseTitle: "Bu dersi silmek istiyor musunuz?",
     doneEditing: "Bitti",
+    selectedCount: (n: number) => `${n} ders seçildi`,
+    deleteSelected: "Seçilenleri Sil",
+    bulkDeleteTitle: (n: number) => `${n} ders silinsin mi?`,
+    bulkDeleteDesc: "Seçilen dersler ve tüm devamsızlık kayıtları kalıcı olarak silinecek. Emin misiniz?",
+    clearAllRecords: "Tümünü Temizle",
     // detail
     remaining: "Kalan Hak",
     used: "Kullanılan",
@@ -69,9 +74,9 @@ export const TXT = {
     saUnit: "saat",
     hour: "saat",
     // reset
-    resetProfile: "Profili Sıfırla",
-    resetTitle: "Profili Sıfırla",
-    resetDesc: "Tüm dersleriniz ve devamsızlık kayıtlarınız kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    resetProfile: "Profili Sıfırla / Değiştir",
+    resetTitle: "Profili Sıfırla / Değiştir",
+    resetDesc: "Tüm dersleriniz ve devamsızlık kayıtlarınız kalıcı olarak silinecek ve giriş ekranına döneceksiniz. Bu işlem geri alınamaz.",
     resetConfirmBtn: "Evet, Hepsini Sil",
     noneLeft: "Hakkın kalmadı",
     yes: "Evet",
@@ -105,6 +110,18 @@ export const TXT = {
     // summary card
     summaryNear: (n: number) => `${n} dersin sınıra yakın`,
     welcome: (name: string) => `Hoş geldin, ${name}`,
+    // info sheet
+    infoTitle: "GMT Devamsızlık Takip Nedir?",
+    infoIntro:
+      "Derslerindeki devamsızlık süreni ders saati cinsinden takip etmeni sağlayan basit bir araç. Google ile giriş yaparsan verilerin bulutta yedeklenir; misafir modunda ise yalnızca bu cihazda saklanır.",
+    infoTips: [
+      "“+” butonuyla bir ders ekle ve o dönem için toplam devamsızlık hakkını (saat) gir.",
+      "Devamsız kaldığın günü ders detayındaki takvimden işaretle.",
+      "Bir dersin üzerine basılı tutarak silebilir, birden fazlasını seçip toplu silebilirsin.",
+      "Yeni dönem başlattığında eski dersler silinmez, “Geçmiş” sekmesine arşivlenir.",
+      "Google ile giriş yaparsan verilerin cihaz değişse veya uygulama silinse bile kaybolmaz.",
+    ] as string[],
+    infoClose: "Anladım",
   },
   en: {
     loginTitle: "GMT Attendance Tracker",
@@ -140,6 +157,11 @@ export const TXT = {
     deleteCourseConfirm: "This course and all its absence records will be deleted. Are you sure?",
     deleteCourseTitle: "Delete this course?",
     doneEditing: "Done",
+    selectedCount: (n: number) => `${n} course(s) selected`,
+    deleteSelected: "Delete Selected",
+    bulkDeleteTitle: (n: number) => `Delete ${n} course(s)?`,
+    bulkDeleteDesc: "The selected courses and all their absence records will be permanently deleted. Are you sure?",
+    clearAllRecords: "Clear All",
     remaining: "Remaining",
     used: "Used",
     records: "Absence Records",
@@ -157,9 +179,9 @@ export const TXT = {
     notifLimit: (name: string) => `You've reached the absence limit for "${name}"!`,
     saUnit: "hours",
     hour: "hours",
-    resetProfile: "Reset Profile",
-    resetTitle: "Reset Profile",
-    resetDesc: "All your courses and absence records will be permanently deleted. This cannot be undone.",
+    resetProfile: "Reset / Switch Profile",
+    resetTitle: "Reset / Switch Profile",
+    resetDesc: "All your courses and absence records will be permanently deleted and you'll return to the sign-in screen. This cannot be undone.",
     resetConfirmBtn: "Yes, Delete All",
     noneLeft: "No hours left",
     yes: "Yes",
@@ -188,6 +210,17 @@ export const TXT = {
     syncOffline: "Offline",
     summaryNear: (n: number) => `${n} course(s) near the limit`,
     welcome: (name: string) => `Welcome, ${name}`,
+    infoTitle: "What is GMT Attendance Tracker?",
+    infoIntro:
+      "A simple tool to track your class absences in hours. Sign in with Google and your data is backed up in the cloud; in guest mode it's stored on this device only.",
+    infoTips: [
+      "Tap “+” to add a course and enter your total allowed absence (in hours) for the term.",
+      "Mark the day you missed on the course detail's calendar.",
+      "Long-press a course to delete it, or select several to delete them together.",
+      "Starting a new semester doesn't delete old courses — they're archived under the “Past” tab.",
+      "Sign in with Google and your data survives even if you switch devices or delete the app.",
+    ] as string[],
+    infoClose: "Got it",
   },
 } as const;
 

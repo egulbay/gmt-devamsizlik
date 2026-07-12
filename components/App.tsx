@@ -17,7 +17,7 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { GoogleIcon, MoonIcon, PersonIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 
 type Screen = "login" | "guestName" | "home" | "detail";
 type SortMode = "default" | "near" | "name";
@@ -67,11 +67,16 @@ export default function App() {
   const [resetConfirm, setResetConfirm] = useState(false);
   const [clearRecordsConfirm, setClearRecordsConfirm] = useState(false);
   // Course pending deletion (its id), shown via a confirm sheet. Set from the
-  // detail edit-sheet OR from long-press "jiggle" mode on the home list.
+  // detail screen's trash icon OR from long-press "edit mode" on the home list.
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  // iOS-style edit mode: long-press a course card to make the list jiggle and
-  // reveal a delete (×) badge on each card.
-  const [jiggle, setJiggle] = useState(false);
+  // iOS-style edit mode: long-press a course card to make the list jiggle,
+  // reveal a per-card delete (×) badge, and allow multi-select for bulk delete.
+  // Works across both the Active and Past (archived) course lists.
+  const [editMode, setEditMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const editModeRef = useRef(false);
+  const [infoSheet, setInfoSheet] = useState(false);
   const [semesterSheet, setSemesterSheet] = useState(false);
   const [semesterName, setSemesterName] = useState("");
   const [exportSheet, setExportSheet] = useState<{ scope: "course" | "all" } | null>(null);
@@ -250,6 +255,8 @@ export default function App() {
 
   // Hardware/gesture back button: while on the course detail screen, go back
   // to Derslerim instead of letting the browser navigate away from the PWA.
+  // Same for long-press edit/selection mode on the home list — back should
+  // cancel it and stay on Derslerim, not exit the app.
   useEffect(() => {
     const onPopState = () => {
       setScreen((s) => {
@@ -259,9 +266,43 @@ export default function App() {
         }
         return s;
       });
+      if (editModeRef.current) {
+        editModeRef.current = false;
+        setEditMode(false);
+        setSelected(new Set());
+      }
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Enter long-press edit mode, pushing a history entry so the hardware/
+  // gesture back button cancels it instead of leaving the app (guarded so a
+  // second long-press while already in edit mode doesn't push twice).
+  const enterEditMode = useCallback(() => {
+    if (editModeRef.current) return;
+    editModeRef.current = true;
+    setEditMode(true);
+    window.history.pushState({ gmtScreen: "edit" }, "");
+  }, []);
+  // Exit edit mode via the "Done" button etc. — consume the pushed history
+  // entry through back() so a later back-press doesn't hit a stale entry.
+  const exitEditMode = useCallback(() => {
+    if (window.history.state?.gmtScreen === "edit") {
+      window.history.back();
+    } else {
+      editModeRef.current = false;
+      setEditMode(false);
+      setSelected(new Set());
+    }
+  }, []);
+  const toggleSelected = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   // apply theme to <html>
@@ -381,9 +422,19 @@ export default function App() {
     await repo.deleteCourse(id);
     setPendingDeleteId(null);
     setCourseSheet(null);
-    setJiggle(false);
     // If we were viewing this course's detail, return home.
     if (selectedCourseId === id) {
+      setSelectedCourseId(null);
+      setScreen("home");
+    }
+    await reload();
+  };
+  const doBulkDelete = async () => {
+    const ids = [...selected];
+    for (const id of ids) await repo.deleteCourse(id);
+    setBulkDeleteConfirm(false);
+    exitEditMode();
+    if (selectedCourseId && ids.includes(selectedCourseId)) {
       setSelectedCourseId(null);
       setScreen("home");
     }
@@ -616,7 +667,9 @@ export default function App() {
         </div>
         <div className="login-card">
           <div className="row between">
-            <div />
+            <button className="icon-btn small" onClick={() => setInfoSheet(true)} aria-label="info" title={t.infoTitle}>
+              <InfoIcon />
+            </button>
             <ThemeLangIcons small />
           </div>
           <div className="fs20 fw8 tc">{t.welcomeTitle}</div>
@@ -717,10 +770,22 @@ export default function App() {
 
         {/* segment tabs */}
         <div className="seg">
-          <button className={homeTab === "active" ? "active" : ""} onClick={() => setHomeTab("active")}>
+          <button
+            className={homeTab === "active" ? "active" : ""}
+            onClick={() => {
+              exitEditMode();
+              setHomeTab("active");
+            }}
+          >
             {t.active}
           </button>
-          <button className={homeTab === "past" ? "active" : ""} onClick={() => setHomeTab("past")}>
+          <button
+            className={homeTab === "past" ? "active" : ""}
+            onClick={() => {
+              exitEditMode();
+              setHomeTab("past");
+            }}
+          >
             {t.past}
           </button>
         </div>
@@ -768,21 +833,21 @@ export default function App() {
           </div>
         )}
 
-        {jiggle && (
-          <div className="jiggle-hint">
-            <button className="link-btn" onClick={() => setJiggle(false)}>{t.doneEditing}</button>
-          </div>
-        )}
+        {renderEditBar()}
 
         <div className="course-list">
           {visibleCourses.map((c) => (
             <CourseCard
               key={c.id}
               c={c}
-              onClick={() => (jiggle ? setJiggle(false) : openCourse(c.id))}
-              onLongPress={() => setJiggle(true)}
+              onClick={() => (editMode ? toggleSelected(c.id) : openCourse(c.id))}
+              onLongPress={() => {
+                enterEditMode();
+                toggleSelected(c.id);
+              }}
               onDelete={() => setPendingDeleteId(c.id)}
-              jiggle={jiggle}
+              editMode={editMode}
+              selected={selected.has(c.id)}
               dark={theme === "dark"}
               t={t}
             />
@@ -802,12 +867,33 @@ export default function App() {
     );
   }
 
+  // Shown above the course list in both Active and Past tabs while long-press
+  // edit mode is on: selection count + bulk delete + a way to exit the mode
+  // without relying on the hardware back button.
+  function renderEditBar() {
+    if (!editMode) return null;
+    return (
+      <div className="edit-bar">
+        <span className="fs13 fw7 sub">{selected.size > 0 ? t.selectedCount(selected.size) : ""}</span>
+        <div className="row" style={{ gap: 10 }}>
+          {selected.size > 0 && (
+            <button className="btn-danger-sm" onClick={() => setBulkDeleteConfirm(true)}>
+              <TrashIcon /> {t.deleteSelected}
+            </button>
+          )}
+          <button className="link-btn" onClick={exitEditMode}>{t.doneEditing}</button>
+        </div>
+      </div>
+    );
+  }
+
   function renderPastTab() {
     if (archivedSemesters.length === 0) {
       return <div className="fs13 sub" style={{ marginTop: 8 }}>{t.noPastSemesters}</div>;
     }
     return (
       <div className="stack">
+        {renderEditBar()}
         {archivedSemesters.map((sem) => {
           const cs = archivedCourses[sem.id] ?? [];
           const open = expandedSem === sem.id;
@@ -824,7 +910,21 @@ export default function App() {
               {open && (
                 <div className="course-list">
                   {cs.map((c) => (
-                    <CourseCard key={c.id} c={c} archived onClick={() => openCourse(c.id)} dark={theme === "dark"} t={t} />
+                    <CourseCard
+                      key={c.id}
+                      c={c}
+                      archived
+                      onClick={() => (editMode ? toggleSelected(c.id) : openCourse(c.id))}
+                      onLongPress={() => {
+                        enterEditMode();
+                        toggleSelected(c.id);
+                      }}
+                      onDelete={() => setPendingDeleteId(c.id)}
+                      editMode={editMode}
+                      selected={selected.has(c.id)}
+                      dark={theme === "dark"}
+                      t={t}
+                    />
                   ))}
                 </div>
               )}
@@ -851,7 +951,12 @@ export default function App() {
             <button className="icon-btn small" onClick={() => setExportSheet({ scope: "course" })} aria-label="share">
               <ShareIcon />
             </button>
-            <button className="icon-btn small" onClick={() => setClearRecordsConfirm(true)} aria-label="clear">
+            <button
+              className="icon-btn small"
+              onClick={() => setPendingDeleteId(c.id)}
+              aria-label="delete-course"
+              title={t.deleteCourse}
+            >
               <TrashIcon />
             </button>
           </div>
@@ -880,7 +985,14 @@ export default function App() {
           onTapDay={c.archived ? () => {} : openDay}
         />
 
-        <div className="fs12 fw7 sub upper">{t.records}</div>
+        <div className="row between">
+          <div className="fs12 fw7 sub upper">{t.records}</div>
+          {selectedRecords.length > 0 && (
+            <button className="link-btn" onClick={() => setClearRecordsConfirm(true)}>
+              {t.clearAllRecords}
+            </button>
+          )}
+        </div>
         {selectedRecords.length ? (
           <div className="records-list">
             {selectedRecords.map((r) => (
@@ -984,6 +1096,16 @@ export default function App() {
             onConfirm={doDeleteCourse}
           />
         )}
+        {bulkDeleteConfirm && (
+          <ConfirmSheet
+            title={t.bulkDeleteTitle(selected.size)}
+            desc={t.bulkDeleteDesc}
+            cancel={t.no}
+            confirm={t.yes}
+            onCancel={() => setBulkDeleteConfirm(false)}
+            onConfirm={doBulkDelete}
+          />
+        )}
 
         {semesterSheet && (
           <>
@@ -1015,6 +1137,26 @@ export default function App() {
               <button className="btn-ghost" onClick={doExportText}><ShareIcon /> {t.exportText}</button>
               <button className="btn-ghost" onClick={doExportPdf}>{t.exportPdf}</button>
               <button className="btn-secondary" onClick={() => setExportSheet(null)}>{t.cancel}</button>
+            </div>
+          </>
+        )}
+
+        {infoSheet && (
+          <>
+            <div className="scrim" onClick={() => setInfoSheet(false)} />
+            <div className="sheet info-sheet">
+              <div className="sheet-handle" />
+              <div className="fw8 fs18">{t.infoTitle}</div>
+              <div className="fs13 sub">{t.infoIntro}</div>
+              <ul className="info-tips">
+                {t.infoTips.map((tip, i) => (
+                  <li key={i}>
+                    <span className="info-tip-dot" />
+                    <span className="fs13">{tip}</span>
+                  </li>
+                ))}
+              </ul>
+              <button className="btn-primary" onClick={() => setInfoSheet(false)}>{t.infoClose}</button>
             </div>
           </>
         )}
@@ -1069,7 +1211,8 @@ function CourseCard({
   onClick,
   onLongPress,
   onDelete,
-  jiggle,
+  editMode,
+  selected,
   archived,
   dark,
   t,
@@ -1078,7 +1221,8 @@ function CourseCard({
   onClick: () => void;
   onLongPress?: () => void;
   onDelete?: () => void;
-  jiggle?: boolean;
+  editMode?: boolean;
+  selected?: boolean;
   archived?: boolean;
   dark: boolean;
   t: ReturnType<typeof tf>;
@@ -1086,8 +1230,8 @@ function CourseCard({
   const pct = Math.min(100, Math.round(c.ratio * 100));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef<{ x: number; y: number } | null>(null);
-  // True once a long-press fired, so the trailing click doesn't also open the
-  // course detail.
+  // True once a long-press fired, so the trailing click doesn't also toggle
+  // selection / open the course detail a second time.
   const longFired = useRef(false);
 
   const clearTimer = () => {
@@ -1098,9 +1242,9 @@ function CourseCard({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (archived || !onLongPress) return;
+    if (!onLongPress || editMode) return;
     // Ignore the × badge's own pointer.
-    if ((e.target as HTMLElement).closest(".cc-del")) return;
+    if ((e.target as HTMLElement).closest(".cc-del, .cc-check")) return;
     longFired.current = false;
     start.current = { x: e.clientX, y: e.clientY };
     clearTimer();
@@ -1137,7 +1281,7 @@ function CourseCard({
 
   return (
     <div
-      className={`course-card${archived ? " archived" : ""}${jiggle ? " jiggling" : ""}`}
+      className={`course-card${archived ? " archived" : ""}${editMode ? " jiggling" : ""}${selected ? " selected" : ""}`}
       onClick={handleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -1148,7 +1292,7 @@ function CourseCard({
         if (onLongPress) e.preventDefault();
       }}
     >
-      {jiggle && !archived && (
+      {editMode && (
         <button
           className="cc-del"
           aria-label={t.deleteCourse}
@@ -1157,11 +1301,23 @@ function CourseCard({
             onDelete?.();
           }}
         >
-          ×
+          <CloseIcon />
         </button>
       )}
       <div className="cc-top">
-        <span className="fw7 fs16">{c.name}</span>
+        {editMode && (
+          <button
+            className={`cc-check${selected ? " on" : ""}`}
+            aria-label="select"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+          >
+            {selected && <CheckIcon />}
+          </button>
+        )}
+        <span className="fw7 fs16" style={{ flex: 1 }}>{c.name}</span>
         {c.warn && <span className={`warn-badge ${c.warnClass}`}>!</span>}
       </div>
       <div className="cc-bar-track">
