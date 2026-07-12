@@ -230,14 +230,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // reload on data changes (from sync pulls / cross-tab)
+  // Reload on data changes coming from sync pulls / cross-tab. Deliberately
+  // NOT on "gmt-enqueue": user actions already call reload() themselves, and
+  // reload → ensureActiveSemester can itself enqueue — listening to enqueue
+  // here created a reload→enqueue→reload feedback loop that livelocked the
+  // tab when many queue writes happened in a burst (e.g. the semester repair).
   useEffect(() => {
     const handler = () => void reload();
     window.addEventListener("gmt-data-changed", handler);
-    window.addEventListener("gmt-enqueue", handler);
     return () => {
       window.removeEventListener("gmt-data-changed", handler);
-      window.removeEventListener("gmt-enqueue", handler);
     };
   }, [reload]);
 

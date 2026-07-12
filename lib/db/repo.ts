@@ -73,7 +73,15 @@ async function enqueue(
 // UI, pointing at the newest empty one, looked wiped). Merge them: keep the
 // oldest as canonical, move every course over, tombstone the ghosts. All
 // changes are enqueued so the cloud copy heals too.
+let semestersRepaired = false;
+
 async function repairDuplicateActiveSemesters(): Promise<void> {
+  // Run at most once per session, and flip the flag BEFORE any await so
+  // concurrent reloads can't start overlapping repairs. Without this the
+  // repair's own enqueues re-trigger reload → ensureActiveSemester → repair
+  // in a feedback loop that livelocks the tab.
+  if (semestersRepaired) return;
+  semestersRepaired = true;
   const all = await db().semesters.toArray();
   const actives = all
     .filter((s) => s.active && !s.deleted)
