@@ -142,52 +142,77 @@ export default function App() {
         /* ignore */
       }
 
-      // Google OAuth: the session is established asynchronously when we return
-      // from Google (PKCE code exchange). Listen for it and route into the app
-      // once it lands — otherwise we'd fall back to the login screen too early.
+      // Google OAuth: after returning from Google, the SDK parses the token
+      // out of the URL as part of its own auto-initialize() call — which
+      // starts the instant the client is constructed, racing our own code.
+      // Relying solely on onAuthStateChange to catch that first event is
+      // fragile (it depends on subscribing before the SDK's internal init
+      // promise resolves). So: register the listener for *future* changes,
+      // AND explicitly await getSession() right after — that call itself
+      // awaits the SDK's init promise, so it reliably reflects a session
+      // parsed from the redirect URL regardless of subscription timing.
+      let handledInitialSession = false;
+      const applySignedInSession = async (
+        u: { id: string; email?: string | null; user_metadata?: Record<string, unknown> },
+        isFreshSignIn: boolean
+      ) => {
+        const name =
+          (u.user_metadata?.full_name as string) ||
+          (u.user_metadata?.name as string) ||
+          u.email ||
+          null;
+        if (isFreshSignIn) {
+          await repo.migrateGuestToAccount(u.id, name);
+          try {
+            window.history.replaceState({}, "", window.location.pathname);
+          } catch {
+            /* ignore */
+          }
+        } else {
+          await repo.patchSettings({ isGuest: false, userId: u.id, userName: name });
+        }
+        await reload();
+        if (cancelled) return;
+        setScreen("home");
+        setReady(true);
+        if (isFreshSignIn) showToast(t.notifDemoTitle, t.welcome(name || ""));
+        void flushSyncQueue();
+        void pullRemote();
+      };
+
       if (isCloudEnabled()) {
         const client = supabase();
         if (client) {
           const res = client.auth.onAuthStateChange((event, session) => {
-            if (!session?.user) return;
-            const u = session.user;
-            const name =
-              (u.user_metadata?.full_name as string) ||
-              (u.user_metadata?.name as string) ||
-              u.email ||
-              null;
-            // Defer the actual work so we never call supabase methods
-            // synchronously inside this callback (avoids SDK deadlocks).
-            setTimeout(async () => {
-              if (cancelled) return;
-              if (event === "SIGNED_IN") {
-                await repo.migrateGuestToAccount(u.id, name);
-                try {
-                  window.history.replaceState({}, "", window.location.pathname);
-                } catch {
-                  /* ignore */
-                }
-              } else {
-                await repo.patchSettings({ isGuest: false, userId: u.id, userName: name });
-              }
-              await reload();
-              if (cancelled) return;
-              setScreen("home");
-              setReady(true);
-              if (event === "SIGNED_IN") showToast(t.notifDemoTitle, t.welcome(name || ""));
-              void flushSyncQueue();
-              void pullRemote();
+            if (!session?.user || handledInitialSession) return;
+            handledInitialSession = true;
+            setTimeout(() => {
+              void applySignedInSession(session.user, event === "SIGNED_IN");
             }, 0);
           });
           authSub = res.data.subscription;
+
+          try {
+            const { data, error } = await client.auth.getSession();
+            if (error) {
+              setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + error.message);
+            } else if (data.session?.user && !handledInitialSession) {
+              handledInitialSession = true;
+              await applySignedInSession(data.session.user, window.location.hash.includes("access_token"));
+            }
+          } catch (e) {
+            setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + String(e));
+          }
         }
       }
 
-      await reload();
-      const s2 = await repo.getSettings();
-      if (cancelled) return;
-      setScreen(s2.userName ? "home" : "login");
-      setReady(true);
+      if (!handledInitialSession) {
+        await reload();
+        const s2 = await repo.getSettings();
+        if (cancelled) return;
+        setScreen(s2.userName ? "home" : "login");
+        setReady(true);
+      }
 
       initSync();
       onSyncState((st) => setSyncState(st));
