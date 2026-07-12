@@ -235,6 +235,22 @@ export default function App() {
     };
   }, [reload]);
 
+  // Hardware/gesture back button: while on the course detail screen, go back
+  // to Derslerim instead of letting the browser navigate away from the PWA.
+  useEffect(() => {
+    const onPopState = () => {
+      setScreen((s) => {
+        if (s === "detail") {
+          setSelectedCourseId(null);
+          return "home";
+        }
+        return s;
+      });
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   // apply theme to <html>
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -362,6 +378,20 @@ export default function App() {
     setCalYear(d.getFullYear());
     setCalMonth(d.getMonth());
     setScreen("detail");
+    // Push a history entry so the phone's hardware/gesture back button closes
+    // this screen (via popstate below) instead of exiting the whole app.
+    window.history.pushState({ gmtScreen: "detail" }, "");
+  };
+
+  const closeDetail = () => {
+    // Go through history.back() (not a direct setScreen) so our pushed entry
+    // gets consumed here rather than lingering for a later back-press to hit.
+    if (window.history.state?.gmtScreen === "detail") {
+      window.history.back();
+    } else {
+      setScreen("home");
+      setSelectedCourseId(null);
+    }
   };
 
   const prevMonth = () => {
@@ -780,7 +810,7 @@ export default function App() {
     return (
       <div className="scr">
         <div className="top-row">
-          <button className="icon-btn small" onClick={() => { setScreen("home"); setSelectedCourseId(null); }}>‹</button>
+          <button className="icon-btn small" onClick={closeDetail}>‹</button>
           <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{c.name}</div>
           <div className="icon-row">
             {!c.archived && (
