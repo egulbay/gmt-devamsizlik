@@ -793,6 +793,17 @@ a {
 /* archived card muted */
 .course-card.archived { opacity: 0.75; }
 
+/* Past-semester header row: expandable card + delete button */
+.past-sem-row { display: flex; align-items: stretch; gap: 8px; }
+.sem-del-btn {
+  flex-shrink: 0;
+  height: auto;
+  align-self: stretch;
+  color: var(--danger);
+  border-color: var(--border);
+}
+.sem-del-btn .ico-trash { width: 17px; height: 17px; }
+
 /* utility */
 .spacer { flex: 1; }
 .row { display: flex; align-items: center; gap: 8px; }

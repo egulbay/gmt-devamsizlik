@@ -69,6 +69,8 @@ export default function App() {
   // Course pending deletion (its id), shown via a confirm sheet. Set from the
   // detail screen's trash icon OR from long-press "edit mode" on the home list.
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // Archived semester pending full deletion (its id).
+  const [pendingDeleteSemId, setPendingDeleteSemId] = useState<string | null>(null);
   // iOS-style edit mode: long-press a course card to make the list jiggle,
   // reveal a per-card delete (×) badge, and allow multi-select for bulk delete.
   // Works across both the Active and Past (archived) course lists.
@@ -438,6 +440,14 @@ export default function App() {
       setSelectedCourseId(null);
       setScreen("home");
     }
+    await reload();
+  };
+  const doDeleteSemester = async () => {
+    const id = pendingDeleteSemId;
+    if (!id) return;
+    await repo.deleteSemester(id);
+    setPendingDeleteSemId(null);
+    if (expandedSem === id) setExpandedSem(null);
     await reload();
   };
 
@@ -899,14 +909,24 @@ export default function App() {
           const open = expandedSem === sem.id;
           return (
             <div key={sem.id} className="stack">
-              <button
-                className="summary-card"
-                style={{ justifyContent: "space-between", width: "100%" }}
-                onClick={() => setExpandedSem(open ? null : sem.id)}
-              >
-                <span>{sem.name}</span>
-                <span className="sub fs12">{cs.length} {lang === "tr" ? "ders" : "courses"} {open ? "▲" : "▼"}</span>
-              </button>
+              <div className="past-sem-row">
+                <button
+                  className="summary-card"
+                  style={{ justifyContent: "space-between", flex: 1 }}
+                  onClick={() => setExpandedSem(open ? null : sem.id)}
+                >
+                  <span>{sem.name}</span>
+                  <span className="sub fs12">{cs.length} {lang === "tr" ? "ders" : "courses"} {open ? "▲" : "▼"}</span>
+                </button>
+                <button
+                  className="icon-btn sem-del-btn"
+                  onClick={() => setPendingDeleteSemId(sem.id)}
+                  aria-label="delete-semester"
+                  title={t.deleteSemester}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
               {open && (
                 <div className="course-list">
                   {cs.map((c) => (
@@ -1104,6 +1124,18 @@ export default function App() {
             confirm={t.yes}
             onCancel={() => setBulkDeleteConfirm(false)}
             onConfirm={doBulkDelete}
+          />
+        )}
+        {pendingDeleteSemId && (
+          <ConfirmSheet
+            title={t.deleteSemesterTitle(
+              archivedSemesters.find((s) => s.id === pendingDeleteSemId)?.name ?? ""
+            )}
+            desc={t.deleteSemesterDesc}
+            cancel={t.no}
+            confirm={t.yes}
+            onCancel={() => setPendingDeleteSemId(null)}
+            onConfirm={doDeleteSemester}
           />
         )}
 

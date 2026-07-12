@@ -235,6 +235,40 @@ export async function startNewSemester(name: string): Promise<Semester> {
   return sem;
 }
 
+// Delete a whole (archived) semester: tombstone the semester itself plus every
+// course under it and each course's absence records, so nothing is left
+// orphaned locally or in the cloud. Refuses to delete the currently-active
+// semester — that's what "Profili Sıfırla / Değiştir" is for.
+export async function deleteSemester(semesterId: string): Promise<void> {
+  const sem = await db().semesters.get(semesterId);
+  if (!sem || sem.deleted) return;
+  const settings = await getSettings();
+  if (sem.active || settings.activeSemesterId === semesterId) return;
+
+  const clientId = await getClientId();
+  const now = Date.now();
+
+  const courses = await db().courses.where("semesterId").equals(semesterId).toArray();
+  for (const c of courses) {
+    if (!c.deleted) {
+      const cTomb = { ...c, deleted: true, updatedAt: now, clientId };
+      await db().courses.put(cTomb);
+      await enqueue("courses", c.id, "delete", cTomb);
+    }
+    const recs = await db().records.where("courseId").equals(c.id).toArray();
+    for (const r of recs) {
+      if (r.deleted) continue;
+      const rTomb = { ...r, deleted: true, updatedAt: now, clientId };
+      await db().records.put(rTomb);
+      await enqueue("records", r.id, "delete", rTomb);
+    }
+  }
+
+  const semTomb = { ...sem, deleted: true, updatedAt: now, clientId };
+  await db().semesters.put(semTomb);
+  await enqueue("semesters", semesterId, "delete", semTomb);
+}
+
 // ---------------------------------------------------------------------------
 // Courses
 // ---------------------------------------------------------------------------
