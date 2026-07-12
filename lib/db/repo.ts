@@ -104,38 +104,76 @@ async function repairDuplicateActiveSemesters(): Promise<void> {
   await patchSettings({ activeSemesterId: canonical.id });
 }
 
+// Rescue pass: any non-archived course whose semester is missing, deleted, or
+// no longer active is invisible in every list (Aktif shows only the active
+// semester's courses; Geçmiş shows only archived semesters). Such strays are
+// left behind by the old sign-in race + interrupted repairs. Move them into
+// the current active semester so they become visible again; enqueue so the
+// cloud heals too. Runs once per session (same livelock caution as above).
+let straysRescued = false;
+
+async function rescueStrayCourses(active: Semester): Promise<void> {
+  if (straysRescued) return;
+  straysRescued = true;
+  const sems = await db().semesters.toArray();
+  const semById = new Map(sems.map((s) => [s.id, s]));
+  const courses = await db().courses.toArray();
+  const clientId = await getClientId();
+  const now = Date.now();
+  for (const c of courses) {
+    if (c.deleted || c.archived) continue;
+    if (c.semesterId === active.id) continue;
+    const home = semById.get(c.semesterId);
+    if (home && !home.deleted && home.active) continue;
+    const moved = { ...c, semesterId: active.id, updatedAt: now, clientId };
+    await db().courses.put(moved);
+    await enqueue("courses", c.id, "upsert", moved);
+  }
+}
+
 export async function ensureActiveSemester(): Promise<Semester> {
   await repairDuplicateActiveSemesters();
   const s = await getSettings();
+  let sem: Semester | null = null;
   if (s.activeSemesterId) {
     const found = await db().semesters.get(s.activeSemesterId);
-    if (found && !found.deleted) return found;
+    // The pointer must reference a semester that is BOTH alive and still
+    // active. Checking only `deleted` let a stale pointer at an archived
+    // (active:false) semester win forever: new courses were created inside
+    // the archived semester and the real active one — with all its courses —
+    // was never shown.
+    if (found && !found.deleted && found.active) sem = found;
   }
-  // activeSemesterId is device-local and never comes from the cloud. If it's
-  // missing/stale (e.g. right after a reinstall + sign-in, before this device
-  // has one recorded) but an active semester already exists locally — most
-  // likely just pulled down from Supabase — adopt it instead of fabricating a
-  // second "phantom" active semester that would orphan the real courses.
-  const existingActive = (await db().semesters.toArray()).find((x) => x.active && !x.deleted);
-  if (existingActive) {
-    await patchSettings({ activeSemesterId: existingActive.id });
-    return existingActive;
+  if (!sem) {
+    // activeSemesterId is device-local and never comes from the cloud. If
+    // it's missing/stale but an active semester already exists locally (e.g.
+    // just pulled down from Supabase after a reinstall), adopt it instead of
+    // fabricating a phantom semester that would orphan the real courses.
+    const existingActive = (await db().semesters.toArray()).find((x) => x.active && !x.deleted);
+    if (existingActive) {
+      await patchSettings({ activeSemesterId: existingActive.id });
+      sem = existingActive;
+    }
   }
-  // Create a default active semester.
-  const now = Date.now();
-  const clientId = await getClientId();
-  const sem: Semester = {
-    id: newId("sem"),
-    name: defaultSemesterName(),
-    active: true,
-    createdAt: now,
-    updatedAt: now,
-    clientId,
-    deleted: false,
-  };
-  await db().semesters.put(sem);
-  await patchSettings({ activeSemesterId: sem.id });
-  await enqueue("semesters", sem.id, "upsert", sem);
+  if (!sem) {
+    // Create a default active semester.
+    const now = Date.now();
+    const clientId = await getClientId();
+    const created: Semester = {
+      id: newId("sem"),
+      name: defaultSemesterName(),
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+      clientId,
+      deleted: false,
+    };
+    await db().semesters.put(created);
+    await patchSettings({ activeSemesterId: created.id });
+    await enqueue("semesters", created.id, "upsert", created);
+    sem = created;
+  }
+  await rescueStrayCourses(sem);
   return sem;
 }
 
