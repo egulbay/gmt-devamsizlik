@@ -67,7 +67,37 @@ async function enqueue(
 // ---------------------------------------------------------------------------
 // Semesters
 // ---------------------------------------------------------------------------
+// Repair pass for data damaged by the old sign-in race: each reinstall used
+// to fabricate a fresh "active" semester, so one account could accumulate
+// several active semesters with its courses scattered across them (and the
+// UI, pointing at the newest empty one, looked wiped). Merge them: keep the
+// oldest as canonical, move every course over, tombstone the ghosts. All
+// changes are enqueued so the cloud copy heals too.
+async function repairDuplicateActiveSemesters(): Promise<void> {
+  const all = await db().semesters.toArray();
+  const actives = all
+    .filter((s) => s.active && !s.deleted)
+    .sort((a, b) => a.createdAt - b.createdAt);
+  if (actives.length <= 1) return;
+  const canonical = actives[0];
+  const clientId = await getClientId();
+  const now = Date.now();
+  for (const ghost of actives.slice(1)) {
+    const courses = await db().courses.where("semesterId").equals(ghost.id).toArray();
+    for (const c of courses) {
+      const moved = { ...c, semesterId: canonical.id, updatedAt: now, clientId };
+      await db().courses.put(moved);
+      await enqueue("courses", c.id, "upsert", moved);
+    }
+    const tomb = { ...ghost, active: false, deleted: true, updatedAt: now, clientId };
+    await db().semesters.put(tomb);
+    await enqueue("semesters", ghost.id, "delete", tomb);
+  }
+  await patchSettings({ activeSemesterId: canonical.id });
+}
+
 export async function ensureActiveSemester(): Promise<Semester> {
+  await repairDuplicateActiveSemesters();
   const s = await getSettings();
   if (s.activeSemesterId) {
     const found = await db().semesters.get(s.activeSemesterId);
