@@ -3,7 +3,7 @@
  * - Background Sync tetikleyicisi (client'a mesaj gönderir)
  * - Web Push bildirimleri
  */
-const CACHE = "gmt-cache-v5";
+const CACHE = "gmt-cache-v6";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/gmt-logo-mark.png"];
 
 self.addEventListener("install", (event) => {

@@ -37,7 +37,7 @@ function computeVM(c: Course, records: AbsenceRecord[]): CourseVM {
   return { ...c, used, remaining, ratio, warn: ratio >= 0.7, warnClass: ratio >= 1 ? "high" : "mid" };
 }
 
-const BUILD_TAG = "b5"; // görünür sürüm etiketi (giriş sorununu teşhis için)
+const BUILD_TAG = "b6"; // görünür sürüm etiketi (giriş sorununu teşhis için)
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -257,12 +257,17 @@ export default function App() {
         return;
       }
       if (data?.url) {
-        // Show a real, tappable link as a fallback: some Android browsers block
-        // the programmatic navigation that happens after an await (it's no
-        // longer a "user gesture"). Tapping an <a> is always allowed.
+        // Do NOT auto-navigate here: on some Android browsers the programmatic
+        // navigation after an await is blocked, and worse, starting it wipes
+        // the page for an instant. Instead we render a real, tappable link and
+        // let the user tap it — that's a genuine user gesture the browser
+        // always honours.
         setOauthUrl(data.url);
-        setAuthError(lang === "tr" ? "Yönlendiriliyor…" : "Redirecting…");
-        window.location.href = data.url;
+        setAuthError(
+          lang === "tr"
+            ? "Aşağıdaki turuncu düğmeye bas 👇"
+            : "Tap the orange button below 👇"
+        );
       } else {
         setAuthError(lang === "tr" ? "Giriş adresi alınamadı." : "No sign-in URL.");
       }
@@ -551,21 +556,21 @@ export default function App() {
             <GoogleIcon />
             {t.googleLogin}
           </button>
+          {authError && (
+            <div className="info-box" style={{ borderColor: "var(--accent)" }}>
+              <span className="info-icon">!</span>
+              <span>{authError}</span>
+            </div>
+          )}
           {oauthUrl && (
             <a
               className="btn-primary"
               href={oauthUrl}
               rel="noopener"
-              style={{ textAlign: "center", textDecoration: "none" }}
+              style={{ textAlign: "center", textDecoration: "none", fontSize: 16 }}
             >
               {lang === "tr" ? "Google'a devam et →" : "Continue to Google →"}
             </a>
-          )}
-          {authError && (
-            <div className="info-box" style={{ borderColor: "var(--danger)" }}>
-              <span className="info-icon" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>!</span>
-              <span>{authError}</span>
-            </div>
           )}
           <div className="divider">{t.or}</div>
           <button className="btn-guest-soft" onClick={loginGuest}>
