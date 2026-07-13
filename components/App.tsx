@@ -259,19 +259,36 @@ export default function App() {
   // to Derslerim instead of letting the browser navigate away from the PWA.
   // Same for long-press edit/selection mode on the home list — back should
   // cancel it and stay on Derslerim, not exit the app.
+  // Refs mirror the current screen/tab so the (once-registered) popstate
+  // handler can peel back navigation layers in the correct top-to-bottom order:
+  //   edit mode  →  detail screen  →  past tab  →  active (base).
+  const homeTabRef = useRef<"active" | "past">("active");
+  const screenRef = useRef<Screen>("login");
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+  useEffect(() => {
+    homeTabRef.current = homeTab;
+  }, [homeTab]);
   useEffect(() => {
     const onPopState = () => {
-      setScreen((s) => {
-        if (s === "detail") {
-          setSelectedCourseId(null);
-          return "home";
-        }
-        return s;
-      });
+      // 1) topmost overlay: long-press edit/selection mode
       if (editModeRef.current) {
         editModeRef.current = false;
         setEditMode(false);
         setSelected(new Set());
+        return;
+      }
+      // 2) course detail screen (pushed after the tab, so peel it first)
+      if (screenRef.current === "detail") {
+        setSelectedCourseId(null);
+        setScreen("home");
+        return;
+      }
+      // 3) past tab → fall back to the active tab instead of exiting the app
+      if (homeTabRef.current === "past") {
+        setHomeTab("active");
+        return;
       }
     };
     window.addEventListener("popstate", onPopState);
@@ -784,7 +801,15 @@ export default function App() {
             className={homeTab === "active" ? "active" : ""}
             onClick={() => {
               exitEditMode();
-              setHomeTab("active");
+              // Consume the pushed "past" history entry (back → popstate switches
+              // the tab) so a later hardware-back doesn't hit a stale entry.
+              if (homeTab === "past") {
+                if (window.history.state?.gmtScreen === "past") {
+                  window.history.back();
+                } else {
+                  setHomeTab("active");
+                }
+              }
             }}
           >
             {t.active}
@@ -793,7 +818,10 @@ export default function App() {
             className={homeTab === "past" ? "active" : ""}
             onClick={() => {
               exitEditMode();
-              setHomeTab("past");
+              if (homeTab !== "past") {
+                window.history.pushState({ gmtScreen: "past" }, "");
+                setHomeTab("past");
+              }
             }}
           >
             {t.past}
