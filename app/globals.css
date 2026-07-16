@@ -561,11 +561,12 @@ a {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
-/* gmt-logo-full.png kare bir tuval; merkezi, logonun ANA halkasının merkezi
-   (209) ile sınırlayıcı kutu merkezinin (230) tam ortası: 219.5. Yarıçap tüm
-   mürekkebi (sağdaki küçük kare accent dahil) kapsar, yani kırpılma olmaz.
-   Genişlik 130: mürekkep yarıçapı 65px, rozetin kırpma yarıçapı 73px → 8px pay. */
-.logo-mark-badge { width: 130px; height: 130px; object-fit: contain; display: block; }
+/* gmt-logo-full.png kare bir tuval. Yatay merkez elle ayarlandı: ana halkanın
+   merkezi 209, sınırlayıcı kutunun merkezi 230 (aradaki fark, sağ üstteki
+   küçük kare accent'ten geliyor). 209 fazla sağa itiyordu, 230 fazla sola;
+   yerleşen değer 224.75. Yarıçap tüm mürekkebi kapsar → kırpılma olmaz.
+   Genişlik 126: mürekkep yarıçapı 63px, rozetin kırpma yarıçapı 73px → 10px pay. */
+.logo-mark-badge { width: 126px; height: 126px; object-fit: contain; display: block; }
 .login-title { color: #fff; white-space: pre-line; font-size: 24px; font-weight: 800; text-align: center; }
 .login-sub { color: rgba(255, 255, 255, 0.92); font-size: 15px; text-align: center; }
 .login-card {

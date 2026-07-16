@@ -5,7 +5,7 @@
  */
 // SÜRÜMÜ ARTIR: statik dosyaları (ikon/logo gibi) değiştirdiğinde bunu bir
 // artır — activate eski cache'leri siler. v12'de logolar donup kalmıştı.
-const CACHE = "gmt-cache-v16";
+const CACHE = "gmt-cache-v17";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/gmt-logo-mark.png"];
 
 // /_next/static/* dosyalarının adında içerik hash'i var: içerik değişince URL
