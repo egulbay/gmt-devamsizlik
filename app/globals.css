@@ -443,8 +443,14 @@ a {
   justify-content: center;
   gap: 10px;
   text-align: center;
-  padding: 0 30px;
-  transform: translateY(-84px);
+  /* İçeriği yukarı çekmek için ALT PADDING kullanılıyor, transform DEĞİL.
+     transform: translateY(-84px) kutunun kendisini (dolayısıyla tıklama
+     alanını da) yukarı taşıyordu: flex:1 olan bu kutu üstteki Aktif/Geçmiş
+     sekmelerinin üzerine biniyor ve DOM'da onlardan sonra geldiği için
+     dokunuşları yutuyordu. Sonuç: yeni dönem başlatıp hiç ders eklemeyince
+     (yani boş durum görünürken) Geçmiş sekmesi tıklanamıyordu.
+     Padding ile kutu yerinde kalır, sadece içerik yukarı kayar. */
+  padding: 0 30px 168px;
 }
 .empty-state .btn-primary {
   margin-top: 6px;
