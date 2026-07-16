@@ -6,6 +6,7 @@ import { tf, MONTHS } from "@/lib/i18n";
 import { ratioColor } from "@/lib/color";
 import type { AbsenceRecord, Course, Lang, Semester, Settings, SyncState, Theme } from "@/lib/types";
 import * as repo from "@/lib/db/repo";
+import { haptic, HAPTIC_PRESS, HAPTIC_TICK } from "@/lib/haptics";
 import { isCloudEnabled, supabase } from "@/lib/sync/supabaseClient";
 import { initSync, onSyncState, flushSyncQueue, pullRemote } from "@/lib/sync/syncEngine";
 import {
@@ -20,7 +21,23 @@ import { Calendar } from "./Calendar";
 import { CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 
 type Screen = "login" | "guestName" | "home" | "detail";
-type SortMode = "default" | "near" | "name";
+type SortMode = "default" | "near" | "name" | "grade";
+
+// Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
+// isteğe bağlı olduğu için boş bırakmak her zaman ulaşılabilir olmalı.
+const GRADE_OPTIONS: (number | null)[] = [null, 0, 1, 2, 3, 4, 5, 6];
+// .gw-opt yüksekliği ile AYNI olmalı (globals.css) — snap matematiği buna dayanıyor.
+const WHEEL_ROW_H = 44;
+
+function gradeLabel(g: number | null, t: ReturnType<typeof tf>): string {
+  if (g == null) return t.gradeUnset;
+  return g === 0 ? t.gradePrep : t.gradeNth(g);
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 interface CourseVM extends Course {
   used: number;
@@ -63,7 +80,16 @@ export default function App() {
   const [courseSheet, setCourseSheet] = useState<{ editId: string | null } | null>(null);
   const [courseName, setCourseName] = useState("");
   const [courseHours, setCourseHours] = useState("");
-  const [dayPopover, setDayPopover] = useState<{ date: string; hours: number; recordId?: string } | null>(null);
+  // Ders sınıfı — isteğe bağlı, null = belirtilmedi.
+  const [courseGrade, setCourseGrade] = useState<number | null>(null);
+  const [dayPopover, setDayPopover] = useState<{
+    date: string;
+    hours: number;
+    recordId?: string;
+    note: string;
+  } | null>(null);
+  // Devamsızlık kayıtları listesinde açıklaması açılmış kayıtların id'leri.
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const [resetConfirm, setResetConfirm] = useState(false);
   const [clearRecordsConfirm, setClearRecordsConfirm] = useState(false);
   // Course pending deletion (its id), shown via a confirm sheet. Set from the
@@ -416,11 +442,13 @@ export default function App() {
     setCourseSheet({ editId: null });
     setCourseName("");
     setCourseHours("");
+    setCourseGrade(null);
   };
   const openEditCourse = (c: CourseVM) => {
     setCourseSheet({ editId: c.id });
     setCourseName(c.name);
     setCourseHours(String(c.totalHours));
+    setCourseGrade(c.grade ?? null);
   };
   const canSaveCourse = courseName.trim().length > 0 && parseFloat(courseHours) > 0;
   const saveCourse = async () => {
@@ -428,9 +456,11 @@ export default function App() {
     const hours = parseFloat(courseHours);
     if (!name || !(hours > 0)) return;
     if (courseSheet?.editId) {
-      await repo.updateCourse(courseSheet.editId, { name, totalHours: hours });
+      // `grade` her zaman gönderiliyor ki kullanıcı seçimi "Belirtilmedi"e
+      // geri çekip sınıfı temizleyebilsin.
+      await repo.updateCourse(courseSheet.editId, { name, totalHours: hours, grade: courseGrade });
     } else {
-      await repo.addCourse(name, hours);
+      await repo.addCourse(name, hours, courseGrade);
     }
     setCourseSheet(null);
     await reload();
@@ -507,15 +537,28 @@ export default function App() {
 
   // ---- records ------------------------------------------------------------
   const openDay = (dateKey: string, existing?: AbsenceRecord) => {
-    setDayPopover({ date: dateKey, hours: existing ? existing.hours : 1, recordId: existing?.id });
+    setDayPopover({
+      date: dateKey,
+      hours: existing ? existing.hours : 1,
+      recordId: existing?.id,
+      note: existing?.note ?? "",
+    });
   };
   const saveDay = async () => {
     if (!dayPopover || !selectedCourseId) return;
     const h = dayPopover.hours;
     if (!(h > 0)) return;
-    await repo.setRecord(selectedCourseId, dayPopover.date, h, dayPopover.recordId);
+    await repo.setRecord(selectedCourseId, dayPopover.date, h, dayPopover.recordId, dayPopover.note);
     setDayPopover(null);
     await reload();
+  };
+  const toggleNote = (recordId: string) => {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(recordId)) next.delete(recordId);
+      else next.add(recordId);
+      return next;
+    });
   };
   const deleteDay = async () => {
     if (!dayPopover?.recordId) {
@@ -618,7 +661,20 @@ export default function App() {
     if (q) list = list.filter((c) => c.name.toLocaleLowerCase(lang === "tr" ? "tr" : "en").includes(q));
     if (sortMode === "near") list.sort((a, b) => b.ratio - a.ratio);
     else if (sortMode === "name") list.sort((a, b) => a.name.localeCompare(b.name, lang));
-    else list.sort((a, b) => a.createdAt - b.createdAt);
+    else if (sortMode === "grade") {
+      list.sort((a, b) => {
+        const ga = a.grade ?? null;
+        const gb = b.grade ?? null;
+        // Sınıfı belirtilmemiş dersler HER ZAMAN en sonda. (Hazırlık = 0
+        // olduğu için "boş"u 0 gibi sıralamak onları Hazırlık'a karıştırırdı.)
+        if (ga == null && gb == null) return a.createdAt - b.createdAt;
+        if (ga == null) return 1;
+        if (gb == null) return -1;
+        if (ga !== gb) return ga - gb; // Hazırlık → 1. sınıf → … → 6. sınıf
+        // Aynı sınıftakiler kendi aralarında eklenme sırasında kalsın.
+        return a.createdAt - b.createdAt;
+      });
+    } else list.sort((a, b) => a.createdAt - b.createdAt);
     return list;
   }, [activeVMs, search, sortMode, lang]);
 
@@ -694,9 +750,14 @@ export default function App() {
         </div>
         <div className="login-card">
           <div className="row between">
-            <button className="icon-btn small" onClick={() => setInfoSheet(true)} aria-label="info" title={t.infoTitle}>
-              <InfoIcon />
-            </button>
+            <div className="info-hint-row">
+              <button className="icon-btn small" onClick={() => setInfoSheet(true)} aria-label="info" title={t.infoTitle}>
+                <InfoIcon />
+              </button>
+              <button className="info-hint" onClick={() => setInfoSheet(true)}>
+                {t.infoHint}
+              </button>
+            </div>
             <ThemeLangIcons small />
           </div>
           <div className="fs20 fw8 tc">{t.welcomeTitle}</div>
@@ -764,7 +825,9 @@ export default function App() {
   }
 
   function renderHome() {
-    const showSearch = activeVMs.length > 3;
+    // İlk ders eklendiği andan itibaren arama + sıralama görünür. Sıfır derste
+    // gizli kalır: o ekranın sahibi boş durum kartı.
+    const showSearch = activeVMs.length > 0;
     return (
       <div className="scr">
         <div className="top-row">
@@ -838,10 +901,10 @@ export default function App() {
       return (
         <>
           <div className="empty-state">
-            <div className="empty-icon">＋</div>
             <div className="fw7 fs16">{t.emptyTitle}</div>
             <div className="fs13 sub">{t.emptyDesc}</div>
             <button className="btn-primary" onClick={openAddCourse}>{t.addCourseBtn}</button>
+            <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
           </div>
         </>
       );
@@ -863,10 +926,16 @@ export default function App() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <select className="sort-select" value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
+            <select
+              className="sort-select"
+              aria-label={t.sortLabel}
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+            >
               <option value="default">{t.sortDefault}</option>
               <option value="near">{t.sortNearLimit}</option>
               <option value="name">{t.sortName}</option>
+              <option value="grade">{t.sortGrade}</option>
             </select>
           </div>
         )}
@@ -1043,26 +1112,50 @@ export default function App() {
         </div>
         {selectedRecords.length ? (
           <div className="records-list">
-            {selectedRecords.map((r) => (
-              <div key={r.id} className="record-row" onClick={() => !c.archived && openDay(r.date, r)}>
-                <span className="rec-date">
-                  {new Date(r.date + "T00:00:00").getDate()} {MONTHS[lang][new Date(r.date + "T00:00:00").getMonth()]}{" "}
-                  {new Date(r.date + "T00:00:00").getFullYear()}
-                </span>
-                <span className="hour-chip">{r.hours} {t.saUnit}</span>
-                {!c.archived && (
-                  <button
-                    className="del-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void deleteRecordDirect(r.id);
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
+            {selectedRecords.map((r) => {
+              const noteOpen = expandedNotes.has(r.id);
+              return (
+                <div key={r.id} className="record-item">
+                  <div className="record-row" onClick={() => !c.archived && openDay(r.date, r)}>
+                    <span className="rec-date">
+                      {new Date(r.date + "T00:00:00").getDate()} {MONTHS[lang][new Date(r.date + "T00:00:00").getMonth()]}{" "}
+                      {new Date(r.date + "T00:00:00").getFullYear()}
+                    </span>
+                    {/* Açıklaması olan kayıtlarda minik kutu; olmayanlarda hiç
+                        render edilmiyor, böylece satır bugünküyle birebir aynı. */}
+                    {r.note && (
+                      <button
+                        className={`note-chip${noteOpen ? " on" : ""}`}
+                        aria-expanded={noteOpen}
+                        aria-label={t.noteChip}
+                        title={t.noteChip}
+                        onClick={(e) => {
+                          // Satırın kendisi düzenleme sayfasını açıyor; kabarcığı
+                          // durdurmazsak açıklamayı açmak yerine o tetiklenir.
+                          e.stopPropagation();
+                          toggleNote(r.id);
+                        }}
+                      >
+                        {t.noteChip}
+                      </button>
+                    )}
+                    <span className="hour-chip">{r.hours} {t.saUnit}</span>
+                    {!c.archived && (
+                      <button
+                        className="del-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteRecordDirect(r.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  {r.note && noteOpen && <div className="rec-note">{r.note}</div>}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="fs13 sub">{t.noRecords}</div>
@@ -1096,6 +1189,8 @@ export default function App() {
                 value={courseHours}
                 onChange={(e) => setCourseHours(e.target.value)}
               />
+              <div className="field-label">{t.gradeLabel}</div>
+              <GradeWheel value={courseGrade} onChange={setCourseGrade} t={t} />
               <div className="sheet-actions">
                 <button className="btn-secondary" onClick={() => setCourseSheet(null)}>{t.cancel}</button>
                 <button className="btn-primary" onClick={saveCourse} disabled={!canSaveCourse}>{t.save}</button>
@@ -1251,6 +1346,15 @@ export default function App() {
             value={dayPopover.hours}
             onChange={(e) => setHours(parseInt(e.target.value, 10))}
           />
+          <div className="field-label">{t.noteLabel}</div>
+          <textarea
+            className="input note-input"
+            placeholder={t.notePlaceholder}
+            maxLength={repo.NOTE_MAX_LEN}
+            rows={2}
+            value={dayPopover.note}
+            onChange={(e) => setDayPopover((p) => (p ? { ...p, note: e.target.value } : p))}
+          />
           <div className="sheet-actions">
             {dayPopover.recordId ? (
               <button className="btn-secondary" onClick={deleteDay}>{t.delete}</button>
@@ -1266,6 +1370,116 @@ export default function App() {
 }
 
 // ---- small presentational components --------------------------------------
+
+// iOS tarzı dikey "tambur" seçici. Sürükleme matematiği elle yazılmıyor:
+// native scroll + CSS scroll-snap kullanılıyor, böylece dokunmatikte gerçek
+// atalet/momentum bedavaya geliyor. Ortadaki satır seçili olandır.
+function GradeWheel({
+  value,
+  onChange,
+  t,
+}: {
+  value: number | null;
+  onChange: (g: number | null) => void;
+  t: ReturnType<typeof tf>;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  // Son "oturmuş" kademe. Titreşim SADECE bu değişince atılıyor — scroll olayı
+  // saniyede onlarca kez tetiklendiği için tık'ı buna bağlamak şart; yoksa
+  // telefon sürekli titrer ve pili bitirir.
+  const lastIdx = useRef(Math.max(0, GRADE_OPTIONS.indexOf(value ?? null)));
+
+  // Mevcut değeri ortala (animasyonsuz, titreşimsiz). Sayfa ilk açıldığında
+  // bir kez; sheet kapanınca bileşen zaten söküldüğü için bu yeterli.
+  // Bu kaydırmanın tık atmaması için ayrı bir "sessiz" bayrağına gerek yok:
+  // lastIdx zaten hedef kademeye ayarlı olduğu için aşağıdaki handler
+  // "kademe değişmedi" deyip erkenden çıkar.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const idx = Math.max(0, GRADE_OPTIONS.indexOf(value ?? null));
+    lastIdx.current = idx;
+    el.scrollTop = idx * WHEEL_ROW_H;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleScroll = () => {
+    const el = ref.current;
+    if (!el) return;
+    const idx = Math.min(
+      GRADE_OPTIONS.length - 1,
+      Math.max(0, Math.round(el.scrollTop / WHEEL_ROW_H))
+    );
+    if (idx === lastIdx.current) return; // kademe değişmedi → tık yok
+    lastIdx.current = idx;
+    // Tık SADECE burada, yani oturan kademe her değiştiğinde bir kez atılır.
+    haptic(HAPTIC_TICK);
+    onChange(GRADE_OPTIONS[idx]);
+  };
+
+  // Tıklama ve klavye de aynı yoldan geçiyor: kaydır → scroll olayı → seçim +
+  // tık. Böylece tek bir "seçim değişti" noktası var.
+  const goTo = (idx: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const clamped = Math.min(GRADE_OPTIONS.length - 1, Math.max(0, idx));
+    el.scrollTo({
+      top: clamped * WHEEL_ROW_H,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const cur = lastIdx.current;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault();
+      goTo(cur + 1);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      goTo(cur - 1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      goTo(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      goTo(GRADE_OPTIONS.length - 1);
+    }
+  };
+
+  const selIdx = Math.max(0, GRADE_OPTIONS.indexOf(value ?? null));
+
+  return (
+    <div className="grade-wheel-wrap">
+      <div className="grade-wheel-sel" aria-hidden="true" />
+      <div
+        className="grade-wheel"
+        ref={ref}
+        onScroll={handleScroll}
+        onKeyDown={onKeyDown}
+        tabIndex={0}
+        role="listbox"
+        aria-label={t.gradeLabel}
+        aria-activedescendant={`gw-opt-${selIdx}`}
+      >
+        <div className="gw-pad" aria-hidden="true" />
+        {GRADE_OPTIONS.map((g, i) => (
+          <div
+            key={String(g)}
+            id={`gw-opt-${i}`}
+            role="option"
+            aria-selected={g === (value ?? null)}
+            className={`gw-opt${g === (value ?? null) ? " on" : ""}${g == null ? " unset" : ""}`}
+            onClick={() => goTo(i)}
+          >
+            {gradeLabel(g, t)}
+          </div>
+        ))}
+        <div className="gw-pad" aria-hidden="true" />
+      </div>
+    </div>
+  );
+}
+
 function CourseCard({
   c,
   onClick,
@@ -1311,11 +1525,7 @@ function CourseCard({
     timer.current = setTimeout(() => {
       longFired.current = true;
       // Haptic feedback where supported (Android/Chrome). iOS ignores it.
-      try {
-        navigator.vibrate?.(15);
-      } catch {
-        /* ignore */
-      }
+      haptic(HAPTIC_PRESS);
       onLongPress();
     }, 450);
   };
@@ -1378,6 +1588,9 @@ function CourseCard({
           </button>
         )}
         <span className="fw7 fs16" style={{ flex: 1 }}>{c.name}</span>
+        {/* Sınıf yalnızca belirtilmişse gösterilir — belirtilmeyenlerde kart
+            bugünküyle birebir aynı kalır. */}
+        {c.grade != null && <span className="grade-badge">{t.gradeBadge(c.grade)}</span>}
         {c.warn && <span className={`warn-badge ${c.warnClass}`}>!</span>}
       </div>
       <div className="cc-bar-track">

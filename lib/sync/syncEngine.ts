@@ -40,6 +40,8 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
       total_hours: c.totalHours,
       semester_id: c.semesterId,
       archived: c.archived,
+      // İsteğe bağlı: 0 = Hazırlık, 1..6 = sınıf, null = belirtilmemiş.
+      grade: c.grade ?? null,
       deleted: c.deleted,
       updated_at: new Date(c.updatedAt).toISOString(),
       client_id: c.clientId,
@@ -53,6 +55,8 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
       course_id: r.courseId,
       date: r.date,
       hours: r.hours,
+      // İsteğe bağlı kısa açıklama; yoksa null.
+      note: r.note ?? null,
       deleted: r.deleted,
       updated_at: new Date(r.updatedAt).toISOString(),
       client_id: r.clientId,
@@ -142,6 +146,7 @@ export async function pullRemote(): Promise<void> {
         totalHours: c.total_hours,
         semesterId: c.semester_id,
         archived: c.archived,
+        grade: c.grade ?? null,
         deleted: c.deleted,
         updatedAt: Date.parse(c.updated_at),
         clientId: c.client_id,
@@ -154,6 +159,7 @@ export async function pullRemote(): Promise<void> {
         courseId: r.course_id,
         date: r.date,
         hours: r.hours,
+        note: r.note ?? null,
         deleted: r.deleted,
         updatedAt: Date.parse(r.updated_at),
         clientId: r.client_id,

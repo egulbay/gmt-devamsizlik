@@ -414,20 +414,21 @@ a {
   gap: 10px;
   text-align: center;
   padding: 0 30px;
-  transform: translateY(-30px);
+  transform: translateY(-84px);
 }
-.empty-icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  color: var(--accent);
-  margin-bottom: 4px;
+.empty-state .btn-primary {
+  margin-top: 6px;
+  padding-left: 26px;
+  padding-right: 26px;
+}
+/* Quiet secondary action, clearly separated from the primary CTA so it
+   can't be tapped by accident. */
+.empty-state .btn-reset {
+  margin-top: 34px;
+  padding-left: 20px;
+  padding-right: 20px;
+  font-size: 13px;
+  opacity: 0.85;
 }
 
 /* ---- Buttons ---- */
@@ -522,7 +523,10 @@ a {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
-.logo-mark-badge { width: 118px; object-fit: contain; display: block; }
+/* gmt-logo-full.png is a square canvas whose inscribed circle == the logo ink's
+   minimal enclosing circle, so width alone sets how full the badge reads.
+   126/146 ≈ 86%: snug against the rim with an even ~10px margin, nothing clipped. */
+.logo-mark-badge { width: 126px; height: 126px; object-fit: contain; display: block; }
 .login-title { color: #fff; white-space: pre-line; font-size: 24px; font-weight: 800; text-align: center; }
 .login-sub { color: rgba(255, 255, 255, 0.92); font-size: 15px; text-align: center; }
 .login-card {
@@ -535,6 +539,27 @@ a {
   gap: 14px;
   flex: 1;
 }
+.info-hint-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.info-hint {
+  border: 0;
+  background: transparent;
+  padding: 0 2px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--sub);
+  white-space: nowrap;
+  cursor: pointer;
+  text-align: left;
+}
+.info-hint:active { color: var(--accent); }
+
 .btn-google-outline {
   display: flex;
   align-items: center;
@@ -633,6 +658,8 @@ a {
 
 /* ---- Records ---- */
 .records-list { display: flex; flex-direction: column; gap: 8px; }
+/* Satır + (varsa) açılan açıklama tek bir öğe olarak dursun. */
+.record-item { display: flex; flex-direction: column; gap: 6px; }
 .record-row {
   display: flex;
   align-items: center;
@@ -661,6 +688,123 @@ a {
   font-size: 18px;
   padding: 0 4px;
   line-height: 1;
+}
+
+/* Açıklaması olan kayıttaki minik kutu + basınca açılan tam metin. */
+.note-chip {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sub);
+  background: var(--track);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 8px;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.note-chip.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+.rec-note {
+  background: var(--track);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  /* Uzun / boşluksuz metin 375px'i patlatmasın. */
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* Not alanı: .input görünümünü miras alır, sadece çok satırlı davranır. */
+.note-input {
+  resize: none;
+  min-height: 62px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+/* ---- Grade (sınıf) ---- */
+.grade-badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sub);
+  background: var(--track);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+/* iOS tarzı dikey tambur seçici. */
+.grade-wheel-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  background: var(--track);
+  overflow: hidden;
+}
+/* Ortadaki seçim penceresi — tıklamaları engellememesi için pointer-events yok. */
+.grade-wheel-sel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent-border);
+  pointer-events: none;
+  z-index: 1;
+}
+.grade-wheel {
+  position: relative;
+  height: 132px; /* tam 3 satır */
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  outline: none;
+}
+.grade-wheel::-webkit-scrollbar { display: none; }
+.grade-wheel:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-btn); }
+/* İlk ve son seçeneğin de ortalanabilmesi için üstte/altta birer satır boşluk. */
+.gw-pad { height: 44px; }
+.gw-opt {
+  height: 44px;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sub);
+  opacity: 0.55;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.gw-opt.on {
+  color: var(--accent);
+  opacity: 1;
+  position: relative;
+  z-index: 2;
+}
+/* "Belirtilmedi" bilinçli olarak daha sönük — boş bırakmanın normal olduğu belli olsun. */
+.gw-opt.unset { font-style: italic; }
+@media (prefers-reduced-motion: reduce) {
+  .gw-opt { transition: none; }
+  .grade-wheel { scroll-behavior: auto; }
 }
 
 /* ---- Bottom sheet / modal ---- */

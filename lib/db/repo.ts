@@ -272,6 +272,28 @@ export async function deleteSemester(semesterId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 // Courses
 // ---------------------------------------------------------------------------
+
+// Geçerli sınıf değerleri: 0 (Hazırlık) .. 6 (6. sınıf). Bunun dışındaki her
+// şey (undefined, null, NaN, aralık dışı) "belirtilmemiş" = null olur.
+export const GRADE_MIN = 0;
+export const GRADE_MAX = 6;
+
+export function normalizeGrade(g: number | null | undefined): number | null {
+  if (g == null || typeof g !== "number" || !Number.isFinite(g)) return null;
+  const n = Math.round(g);
+  if (n < GRADE_MIN || n > GRADE_MAX) return null;
+  return n;
+}
+
+// Açıklama en fazla bu kadar karakter — kısa bir not olması amaçlanıyor.
+export const NOTE_MAX_LEN = 280;
+
+export function normalizeNote(note: string | null | undefined): string | null {
+  if (note == null) return null;
+  const trimmed = String(note).trim().slice(0, NOTE_MAX_LEN);
+  return trimmed.length ? trimmed : null;
+}
+
 export async function listActiveCourses(): Promise<Course[]> {
   const sem = await ensureActiveSemester();
   const all = await db().courses.where("semesterId").equals(sem.id).toArray();
@@ -290,7 +312,12 @@ export async function getCourse(id: string): Promise<Course | undefined> {
   return c && !c.deleted ? c : undefined;
 }
 
-export async function addCourse(name: string, totalHours: number): Promise<Course> {
+// `grade` isteğe bağlı: verilmezse ders sınıfsız (belirtilmemiş) kalır.
+export async function addCourse(
+  name: string,
+  totalHours: number,
+  grade?: number | null
+): Promise<Course> {
   const clientId = await getClientId();
   const sem = await ensureActiveSemester();
   const now = Date.now();
@@ -300,6 +327,7 @@ export async function addCourse(name: string, totalHours: number): Promise<Cours
     totalHours,
     semesterId: sem.id,
     archived: false,
+    grade: normalizeGrade(grade),
     createdAt: now,
     updatedAt: now,
     clientId,
@@ -315,12 +343,14 @@ export async function addCourse(name: string, totalHours: number): Promise<Cours
 
 export async function updateCourse(
   id: string,
-  patch: Partial<Pick<Course, "name" | "totalHours" | "notifiedTwoLeft" | "notifiedLimit" | "lastWeeklyNotifyAt">>
+  patch: Partial<Pick<Course, "name" | "totalHours" | "grade" | "notifiedTwoLeft" | "notifiedLimit" | "lastWeeklyNotifyAt">>
 ): Promise<Course | undefined> {
   const cur = await db().courses.get(id);
   if (!cur) return undefined;
   const clientId = await getClientId();
   const next = { ...cur, ...patch, updatedAt: Date.now(), clientId };
+  // `grade` patch'te varsa (null dahil — "sınıfı temizle") normalize et.
+  if ("grade" in patch) next.grade = normalizeGrade(patch.grade);
   await db().courses.put(next);
   await enqueue("courses", id, "upsert", next);
   return next;
@@ -358,11 +388,13 @@ export async function usedHours(courseId: string): Promise<number> {
 }
 
 // Upsert a record for a specific (course, date). One record per day per course.
+// `note` isteğe bağlı: verilmezse/boşsa kayıt açıklamasız (null) kalır.
 export async function setRecord(
   courseId: string,
   date: string,
   hours: number,
-  recordId?: string
+  recordId?: string,
+  note?: string | null
 ): Promise<AbsenceRecord> {
   const clientId = await getClientId();
   const now = Date.now();
@@ -375,13 +407,15 @@ export async function setRecord(
     );
     existing = sameDay[0];
   }
+  const cleanNote = normalizeNote(note);
   const rec: AbsenceRecord = existing
-    ? { ...existing, hours, date, updatedAt: now, clientId, deleted: false }
+    ? { ...existing, hours, date, note: cleanNote, updatedAt: now, clientId, deleted: false }
     : {
         id: newId("rec"),
         courseId,
         date,
         hours,
+        note: cleanNote,
         createdAt: now,
         updatedAt: now,
         clientId,

@@ -10,6 +10,11 @@ export interface Course {
   totalHours: number; // devamsızlık hakkı — DERS SAATİ cinsinden
   semesterId: string; // hangi döneme ait
   archived: boolean; // arşivlenmiş dönem dersi mi
+  // Kaçıncı sınıfın dersi — İSTEĞE BAĞLI.
+  // 0 = Hazırlık, 1..6 = 1..6. sınıf, null/undefined = belirtilmemiş.
+  // Sayı olarak saklanır: doğru sıralanır ve dil değişince bozulmaz
+  // (çevrilen şey yalnızca etiket).
+  grade?: number | null;
   createdAt: number;
   updatedAt: number;
   clientId: string;
@@ -25,6 +30,7 @@ export interface AbsenceRecord {
   courseId: string;
   date: string; // "YYYY-MM-DD"
   hours: number; // o gün gelinmeyen ders saati
+  note?: string | null; // isteğe bağlı kısa açıklama (neden gelinmedi)
   createdAt: number;
   updatedAt: number;
   clientId: string;
