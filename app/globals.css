@@ -561,10 +561,14 @@ a {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
-/* gmt-logo-full.png is a square canvas whose inscribed circle == the logo ink's
-   minimal enclosing circle, so width alone sets how full the badge reads.
-   126/146 ≈ 86%: snug against the rim with an even ~10px margin, nothing clipped. */
-.logo-mark-badge { width: 126px; height: 126px; object-fit: contain; display: block; }
+/* gmt-logo-full.png kare bir tuval: merkezi logonun ANA halkasının merkezi,
+   yarıçapı ise TÜM mürekkebi (sağdaki küçük kare accent dahil) kapsıyor.
+   Böylece rozete ortalandığında gözün "orta" dediği halka tam ortada durur —
+   kutu merkezine göre ortalamak, o küçük kare kutuyu sağa genişlettiği için
+   halkayı ~8px sola kaydırıyordu.
+   Tuval bu yüzden büyüdüğünden genişlik 126 → 134: mürekkep yarıçapı 67px,
+   rozetin kırpma yarıçapı 73px → ~6px pay, hiçbir şey kırpılmıyor. */
+.logo-mark-badge { width: 134px; height: 134px; object-fit: contain; display: block; }
 .login-title { color: #fff; white-space: pre-line; font-size: 24px; font-weight: 800; text-align: center; }
 .login-sub { color: rgba(255, 255, 255, 0.92); font-size: 15px; text-align: center; }
 .login-card {
