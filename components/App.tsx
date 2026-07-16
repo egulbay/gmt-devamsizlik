@@ -286,13 +286,14 @@ export default function App() {
     };
   }, [reload]);
 
-  // Hardware/gesture back button: while on the course detail screen, go back
-  // to Derslerim instead of letting the browser navigate away from the PWA.
-  // Same for long-press edit/selection mode on the home list — back should
-  // cancel it and stay on Derslerim, not exit the app.
-  // Refs mirror the current screen/tab so the (once-registered) popstate
-  // handler can peel back navigation layers in the correct top-to-bottom order:
-  //   edit mode  →  detail screen  →  past tab  →  active (base).
+  // ---- geçmiş (history) yönetimi ------------------------------------------
+  // Telefonun geri tuşu, uygulamadan çıkmak yerine sırayla şunları geri almalı:
+  //   düzenleme modu → detay ekranı → Geçmiş sekmesi → Aktif (taban).
+  //
+  // TEK DOĞRULUK KAYNAĞI: her katman kendi history kaydını iter ve popstate,
+  // arayüzü *indiği kaydın state'inden* yeniden kurar. Önceki sürüm bunun
+  // yerine ref'lere bakıp katmanları tek tek soyuyordu; bu, aynı anda birden
+  // fazla kayıt tüketen durumlarda (ör. go(-2)) yanlış katmanı soyuyordu.
   const homeTabRef = useRef<"active" | "past">("active");
   const screenRef = useRef<Screen>("login");
   useEffect(() => {
@@ -301,30 +302,34 @@ export default function App() {
   useEffect(() => {
     homeTabRef.current = homeTab;
   }, [homeTab]);
+
+  const clearEditState = useCallback(() => {
+    editModeRef.current = false;
+    setEditMode(false);
+    setSelected(new Set());
+  }, []);
+
   useEffect(() => {
-    const onPopState = () => {
-      // 1) topmost overlay: long-press edit/selection mode
-      if (editModeRef.current) {
-        editModeRef.current = false;
-        setEditMode(false);
-        setSelected(new Set());
-        return;
-      }
-      // 2) course detail screen (pushed after the tab, so peel it first)
-      if (screenRef.current === "detail") {
+    const onPopState = (e: PopStateEvent) => {
+      const st = (e.state ?? null) as { gmtScreen?: string; tab?: "active" | "past" } | null;
+      const scr = st?.gmtScreen;
+      // Sekme bilgisi kaydın içinde taşınır: "past" kaydı Geçmiş demektir,
+      // detay/düzenleme kayıtları hangi sekmeden açıldıklarını hatırlar,
+      // taban kayıt (Next'in kendi state'i) Aktif demektir.
+      const tab: "active" | "past" = scr === "past" ? "past" : st?.tab ?? "active";
+
+      // Düzenleme modu ve detay ekranı yalnızca KENDİ kayıtları üstteyken açık
+      // kalır; başka bir kayda indiysek kapanırlar.
+      if (scr !== "edit" && editModeRef.current) clearEditState();
+      if (scr !== "detail" && screenRef.current === "detail") {
         setSelectedCourseId(null);
         setScreen("home");
-        return;
       }
-      // 3) past tab → fall back to the active tab instead of exiting the app
-      if (homeTabRef.current === "past") {
-        setHomeTab("active");
-        return;
-      }
+      setHomeTab(tab);
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [clearEditState]);
 
   // Enter long-press edit mode, pushing a history entry so the hardware/
   // gesture back button cancels it instead of leaving the app (guarded so a
@@ -333,19 +338,20 @@ export default function App() {
     if (editModeRef.current) return;
     editModeRef.current = true;
     setEditMode(true);
-    window.history.pushState({ gmtScreen: "edit" }, "");
+    // Hangi sekmedeyken açıldığını kayda yaz ki geri basınca o sekmeye dönelim.
+    window.history.pushState({ gmtScreen: "edit", tab: homeTabRef.current }, "");
   }, []);
   // Exit edit mode via the "Done" button etc. — consume the pushed history
   // entry through back() so a later back-press doesn't hit a stale entry.
   const exitEditMode = useCallback(() => {
+    if (!editModeRef.current) return;
     if (window.history.state?.gmtScreen === "edit") {
+      // back() asenkron; state'i popstate temizler (indiği kayıttan yeniden kurar).
       window.history.back();
     } else {
-      editModeRef.current = false;
-      setEditMode(false);
-      setSelected(new Set());
+      clearEditState();
     }
-  }, []);
+  }, [clearEditState]);
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -510,8 +516,9 @@ export default function App() {
     setCalMonth(d.getMonth());
     setScreen("detail");
     // Push a history entry so the phone's hardware/gesture back button closes
-    // this screen (via popstate below) instead of exiting the whole app.
-    window.history.pushState({ gmtScreen: "detail" }, "");
+    // this screen (via popstate above) instead of exiting the whole app. Hangi
+    // sekmeden açıldığını taşı ki kapanınca o sekmeye dönelim.
+    window.history.pushState({ gmtScreen: "detail", tab: homeTabRef.current }, "");
   };
 
   const closeDetail = () => {
@@ -896,16 +903,17 @@ export default function App() {
           <button
             className={homeTab === "active" ? "active" : ""}
             onClick={() => {
-              exitEditMode();
-              // Consume the pushed "past" history entry (back → popstate switches
-              // the tab) so a later hardware-back doesn't hit a stale entry.
-              if (homeTab === "past") {
-                if (window.history.state?.gmtScreen === "past") {
-                  window.history.back();
-                } else {
-                  setHomeTab("active");
-                }
+              const st = window.history.state?.gmtScreen;
+              if (homeTab !== "past") {
+                exitEditMode();
+                return;
               }
+              // Geçmiş'ten çıkıyoruz: itilmiş kayıtları tüket ki geri tuşu
+              // sonradan bayat bir kayda çarpmasın. Sekmeyi popstate ayarlar.
+              clearEditState();
+              if (st === "edit") window.history.go(-2); // [.., past, edit]
+              else if (st === "past") window.history.back();
+              else setHomeTab("active");
             }}
           >
             {t.active}
@@ -913,11 +921,20 @@ export default function App() {
           <button
             className={homeTab === "past" ? "active" : ""}
             onClick={() => {
-              exitEditMode();
-              if (homeTab !== "past") {
+              if (homeTab === "past") return;
+              const st = window.history.state?.gmtScreen;
+              // Düzenleme modundaysak onun kaydını "past" ile DEĞİŞTİR; üstüne
+              // itme. Eskiden exitEditMode() → history.back() (asenkron) ile
+              // pushState yarışıyordu: pushState önce çalışıyor, sonra gelen
+              // back() onu geri alıyordu; sonuçta sekme Geçmiş'e geçse de
+              // "past" kaydı hiç oluşmuyordu ve geri tuşu uygulamadan çıkıyordu.
+              if (st === "edit") {
+                clearEditState();
+                window.history.replaceState({ gmtScreen: "past" }, "");
+              } else {
                 window.history.pushState({ gmtScreen: "past" }, "");
-                setHomeTab("past");
               }
+              setHomeTab("past");
             }}
           >
             {t.past}

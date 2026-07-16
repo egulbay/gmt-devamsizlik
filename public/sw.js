@@ -3,8 +3,14 @@
  * - Background Sync tetikleyicisi (client'a mesaj gönderir)
  * - Web Push bildirimleri
  */
-const CACHE = "gmt-cache-v12";
+// SÜRÜMÜ ARTIR: statik dosyaları (ikon/logo gibi) değiştirdiğinde bunu bir
+// artır — activate eski cache'leri siler. v12'de logolar donup kalmıştı.
+const CACHE = "gmt-cache-v13";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/gmt-logo-mark.png"];
+
+// /_next/static/* dosyalarının adında içerik hash'i var: içerik değişince URL
+// de değişir, yani bunları süresiz cache'lemek güvenli.
+const isImmutable = (url) => url.pathname.startsWith("/_next/static/");
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -44,19 +50,35 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const store = (res) => {
+    // Never cache error responses (404/5xx) — a transient server hiccup
+    // would otherwise get poisoned into the cache permanently.
+    if (res && res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+    }
+    return res;
+  };
+
+  // İçerik hash'li dosyalar: cache-first. İçerik değişirse URL de değiştiği
+  // için bayat kalmaları mümkün değil.
+  if (isImmutable(url)) {
+    event.respondWith(
+      caches.match(req).then((cached) => cached || fetch(req).then(store)),
+    );
+    return;
+  }
+
+  // Sabit URL'li dosyalar (/icons/*, /manifest.webmanifest):
+  // stale-while-revalidate. Cache'teki kopya anında döner (offline çalışır),
+  // ama arka planda ağdan tazelenir; böylece yeni bir logo en geç bir sonraki
+  // açılışta görünür. Eski davranış (süresiz cache-first) logoyu, URL hiç
+  // değişmediği için, sonsuza dek donduruyordu.
   event.respondWith(
     caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req).then((res) => {
-        // Never cache error responses (404/5xx) — a transient server hiccup
-        // would otherwise get poisoned into the cache permanently.
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return res;
-      });
-    })
+      const network = fetch(req).then(store).catch(() => cached);
+      return cached || network;
+    }),
   );
 });
 
