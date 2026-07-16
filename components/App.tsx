@@ -73,6 +73,11 @@ export default function App() {
 
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("default");
+  // "Sınıfa göre" sıralamadayken hangi sınıfın dersleri listelensin:
+  // "all" = hepsi, 0..6 = o sınıf, "unset" = sınıfı belirtilmemiş dersler.
+  // Yalnızca sortMode === "grade" iken uygulanır; başka bir sıralamaya
+  // geçince sıfırlanır ki dersler sessizce gizli kalmasın.
+  const [gradeFilter, setGradeFilter] = useState<number | "unset" | "all">("all");
 
   const [guestNameInput, setGuestNameInput] = useState("");
 
@@ -659,6 +664,12 @@ export default function App() {
     let list = [...activeVMs];
     const q = search.trim().toLocaleLowerCase(lang === "tr" ? "tr" : "en");
     if (q) list = list.filter((c) => c.name.toLocaleLowerCase(lang === "tr" ? "tr" : "en").includes(q));
+    // Sınıf filtresi sadece "Sınıfa göre" sıralamada geçerli.
+    if (sortMode === "grade" && gradeFilter !== "all") {
+      list = list.filter((c) =>
+        gradeFilter === "unset" ? c.grade == null : c.grade === gradeFilter,
+      );
+    }
     if (sortMode === "near") list.sort((a, b) => b.ratio - a.ratio);
     else if (sortMode === "name") list.sort((a, b) => a.name.localeCompare(b.name, lang));
     else if (sortMode === "grade") {
@@ -676,7 +687,29 @@ export default function App() {
       });
     } else list.sort((a, b) => a.createdAt - b.createdAt);
     return list;
-  }, [activeVMs, search, sortMode, lang]);
+  }, [activeVMs, search, sortMode, gradeFilter, lang]);
+
+  // Filtre çipleri: yalnızca kullanıcının gerçekten dersi olan sınıflar.
+  // (Boş bir "5. sınıf" çipi göstermek gürültü olurdu.)
+  const gradeChips = useMemo(() => {
+    const present = new Set<number>();
+    let hasUnset = false;
+    for (const c of activeVMs) {
+      if (c.grade == null) hasUnset = true;
+      else present.add(c.grade);
+    }
+    const chips: (number | "unset")[] = [...present].sort((a, b) => a - b);
+    if (hasUnset) chips.push("unset");
+    return chips;
+  }, [activeVMs]);
+
+  // Seçili sınıfın son dersi silinince/düzenlenince o çip kaybolur; filtreyi
+  // "all"a döndür, yoksa liste hiçbir çip seçili değilken boş görünürdü.
+  useEffect(() => {
+    if (gradeFilter !== "all" && !gradeChips.includes(gradeFilter)) {
+      setGradeFilter("all");
+    }
+  }, [gradeChips, gradeFilter]);
 
   const nearCount = activeVMs.filter((c) => c.warn).length;
   const selectedVM =
@@ -930,13 +963,38 @@ export default function App() {
               className="sort-select"
               aria-label={t.sortLabel}
               value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              onChange={(e) => {
+                setSortMode(e.target.value as SortMode);
+                setGradeFilter("all");
+              }}
             >
               <option value="default">{t.sortDefault}</option>
               <option value="near">{t.sortNearLimit}</option>
               <option value="name">{t.sortName}</option>
               <option value="grade">{t.sortGrade}</option>
             </select>
+          </div>
+        )}
+
+        {showSearch && sortMode === "grade" && gradeChips.length > 0 && (
+          <div className="grade-filter" role="group" aria-label={t.gradeFilterLabel}>
+            <button
+              className={`gf-chip${gradeFilter === "all" ? " on" : ""}`}
+              aria-pressed={gradeFilter === "all"}
+              onClick={() => setGradeFilter("all")}
+            >
+              {t.gradeFilterAll}
+            </button>
+            {gradeChips.map((g) => (
+              <button
+                key={String(g)}
+                className={`gf-chip${gradeFilter === g ? " on" : ""}`}
+                aria-pressed={gradeFilter === g}
+                onClick={() => setGradeFilter(g)}
+              >
+                {g === "unset" ? t.gradeUnset : t.gradeBadge(g)}
+              </button>
+            ))}
           </div>
         )}
 

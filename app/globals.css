@@ -241,6 +241,36 @@ a {
   color: var(--text);
 }
 
+/* ---- Grade filter chips ("Sınıfa göre" sıralamada) ---- */
+.grade-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  /* Çipler dar ekranda alt satıra kaçmasın, yatay kaysın. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin-top: -6px;
+  padding-bottom: 2px;
+}
+.grade-filter::-webkit-scrollbar { display: none; }
+.gf-chip {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  color: var(--sub);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.gf-chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
 /* ---- Course cards ---- */
 .course-list { display: flex; flex-direction: column; gap: 12px; }
 .course-card {
@@ -506,7 +536,9 @@ a {
 .login-top { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 14px 0; }
 .login-hero {
   background: radial-gradient(130% 110% at 30% 0%, #f3e9e2 0%, #f6c8a8 38%, #ff5a1f 78%, #e8461f 100%);
-  padding: 74px 24px 44px;
+  /* Üst boşluk, rozeti (ve altındaki başlığı) ekranın tepesinden aşağı
+     indirir; env() telefonlardaki çentik/durum çubuğunu da hesaba katar. */
+  padding: max(104px, calc(env(safe-area-inset-top) + 74px)) 24px 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
