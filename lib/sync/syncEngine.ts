@@ -74,6 +74,37 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
   };
 }
 
+// `grade` (courses) ve `note` (absence_records) sonradan eklendi ve Supabase
+// tarafında migration gerektiriyor. Migration çalıştırılmamışsa Postgres
+// bilinmeyen sütun yüzünden TÜM kaydı reddeder: ders buluta hiç ulaşmaz,
+// kuyrukta sonsuza dek bekler ve profil sıfırlanınca (kuyruk da temizlendiği
+// için) kalıcı olarak kaybolur. Hata da yalnızca konsola düştüğü için
+// kullanıcı hiçbir şey fark etmez.
+//
+// Bu yüzden senkronizasyon migration'dan BAĞIMSIZ çalışmalı: sütun yoksa
+// tespit edip bu alanları düşürerek devam ediyoruz. Migration sonradan
+// çalıştırılırsa (sayfa yenilenince) alanlar yeniden gönderilmeye başlar.
+let optionalColsMissing = false;
+
+function stripOptionalCols(row: Record<string, unknown>): Record<string, unknown> {
+  const { grade: _g, note: _n, ...rest } = row;
+  return rest;
+}
+
+function isUnknownColumnError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  const code = err?.code ?? "";
+  const msg = String(err?.message ?? "");
+  // PGRST204: PostgREST şema önbelleğinde sütun yok. 42703: Postgres
+  // undefined_column.
+  return (
+    code === "PGRST204" ||
+    code === "42703" ||
+    /could not find the '(grade|note)' column/i.test(msg) ||
+    /column "?(grade|note)"? (of relation .* )?does not exist/i.test(msg)
+  );
+}
+
 let flushing = false;
 
 // Push queued local writes to Supabase. Safe no-op when offline / not signed in.
@@ -99,7 +130,23 @@ export async function flushSyncQueue(): Promise<void> {
       const cloudRow = toCloud(op.table, op.payload, settings.userId);
       const tableName = TABLE_MAP[op.table];
       // Upsert works for both create/update and soft-delete (deleted flag).
-      const { error } = await client.from(tableName).upsert(cloudRow, { onConflict: "id" });
+      let { error } = await client
+        .from(tableName)
+        .upsert(optionalColsMissing ? stripOptionalCols(cloudRow) : cloudRow, { onConflict: "id" });
+      // Sütunlar yoksa (migration çalıştırılmamış) kaydı KAYBETME: isteğe
+      // bağlı alanları düşürüp tekrar dene. Aksi halde ders sonsuza dek
+      // kuyrukta kalır ve profil sıfırlanınca yok olur.
+      if (error && !optionalColsMissing && isUnknownColumnError(error)) {
+        optionalColsMissing = true;
+        console.warn(
+          "[sync] Supabase'de grade/note sütunu yok (migration çalıştırılmamış). " +
+            "Bu alanlar olmadan senkronize ediliyor; sınıf ve açıklama buluta yazılmayacak. " +
+            "supabase/migrations/001_add_course_grade_and_record_note.sql dosyasını çalıştırın.",
+        );
+        ({ error } = await client
+          .from(tableName)
+          .upsert(stripOptionalCols(cloudRow), { onConflict: "id" }));
+      }
       if (error) throw error;
       if (op.id != null) await db().syncQueue.delete(op.id);
     }

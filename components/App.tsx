@@ -588,6 +588,18 @@ export default function App() {
 
   // ---- reset / clear ------------------------------------------------------
   const doReset = async () => {
+    // Hesapla girildiyse ÖNCE bekleyen yazmaları buluta gönder. resetProfile()
+    // sync kuyruğunu da temizliyor; henüz gönderilememiş bir ders (ör. ağ
+    // yavaştı ya da push hata veriyordu) burada gönderilmezse KALICI olarak
+    // kaybolur — "ders ekledim, sıfırladım, gitti" tam olarak buydu.
+    // signOut'tan önce olmalı: oturum kapanınca flush artık çalışamaz.
+    if (settings && !settings.isGuest) {
+      try {
+        await flushSyncQueue();
+      } catch {
+        /* gönderilemediyse aşağıda yine de yerel sıfırlama yapılır */
+      }
+    }
     // "Profili Sıfırla / DEĞİŞTİR": Supabase oturumu da kapanmalı. Yoksa giriş
     // ekranına dönülse bile oturum canlı kalıyor, "Google ile Giriş" sessizce
     // aynı hesabı geri yüklüyor ve başka bir hesaba geçmek mümkün olmuyordu.
