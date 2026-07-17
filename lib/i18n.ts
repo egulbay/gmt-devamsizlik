@@ -87,8 +87,14 @@ export const TXT = {
     // reset
     resetProfile: "Profili Sıfırla / Değiştir",
     resetTitle: "Profili Sıfırla / Değiştir",
+    // Misafirde veri yalnızca cihazda olduğu için sıfırlama gerçekten kalıcı.
     resetDesc: "Tüm dersleriniz ve devamsızlık kayıtlarınız kalıcı olarak silinecek ve giriş ekranına döneceksiniz. Bu işlem geri alınamaz.",
+    // Hesapla girildiğinde veri bulutta durur: bu ekran yalnızca cihazdaki
+    // kopyayı temizler ve oturumu kapatır.
+    resetDescAccount:
+      "Bu cihazdaki kayıtlar temizlenecek ve hesabınızdan çıkış yapılacak. Dersleriniz hesabınızda saklı kalır; aynı hesapla tekrar giriş yaptığınızda geri gelir.",
     resetConfirmBtn: "Evet, Hepsini Sil",
+    resetConfirmBtnAccount: "Çıkış Yap",
     noneLeft: "Hakkın kalmadı",
     yes: "Evet",
     no: "Hayır",
@@ -209,7 +215,10 @@ export const TXT = {
     resetProfile: "Reset / Switch Profile",
     resetTitle: "Reset / Switch Profile",
     resetDesc: "All your courses and absence records will be permanently deleted and you'll return to the sign-in screen. This cannot be undone.",
+    resetDescAccount:
+      "The records on this device will be cleared and you'll be signed out. Your courses stay saved to your account — sign back in with the same account and they'll be restored.",
     resetConfirmBtn: "Yes, Delete All",
+    resetConfirmBtnAccount: "Sign Out",
     noneLeft: "No hours left",
     yes: "Yes",
     no: "No",

@@ -588,11 +588,33 @@ export default function App() {
 
   // ---- reset / clear ------------------------------------------------------
   const doReset = async () => {
+    // "Profili Sıfırla / DEĞİŞTİR": Supabase oturumu da kapanmalı. Yoksa giriş
+    // ekranına dönülse bile oturum canlı kalıyor, "Google ile Giriş" sessizce
+    // aynı hesabı geri yüklüyor ve başka bir hesaba geçmek mümkün olmuyordu.
+    const client = isCloudEnabled() ? supabase() : null;
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch {
+        /* çevrimdışıysak da yerel sıfırlamaya devam et */
+      }
+    }
     await repo.resetProfile();
     setResetConfirm(false);
     setSelectedCourseId(null);
     setGuestNameInput("");
-    await reload();
+    // reload() BİLEREK çağrılmıyor: listActiveCourses → ensureActiveSemester
+    // zinciri, yerel DB az önce boşaltıldığı için hemen yeni bir "hayalet"
+    // dönem yaratır ve onu buluta kuyruklardı. Tekrar giriş yapıldığında
+    // buluttan gelen gerçek dönem bu hayaletle çakışıp kullanıcının
+    // derslerini görünmez kılıyordu. Giriş ekranına gidiyoruz; burada aktif
+    // döneme zaten ihtiyaç yok, ekran state'ini elle temizlemek yeterli.
+    setActiveVMs([]);
+    setRecordsByCourse({});
+    setArchivedSemesters([]);
+    setArchivedCourses({});
+    setExpandedSem(null);
+    setSettings(await repo.getSettings());
     setScreen("login");
   };
   const doClearRecords = async () => {
@@ -1287,9 +1309,11 @@ export default function App() {
         {resetConfirm && (
           <ConfirmSheet
             title={t.resetTitle}
-            desc={t.resetDesc}
+            // Hesapla girildiğinde veri bulutta kalıyor; "kalıcı olarak
+            // silinecek / geri alınamaz" demek yanlış olurdu.
+            desc={settings!.isGuest ? t.resetDesc : t.resetDescAccount}
             cancel={t.cancel}
-            confirm={t.resetConfirmBtn}
+            confirm={settings!.isGuest ? t.resetConfirmBtn : t.resetConfirmBtnAccount}
             onCancel={() => setResetConfirm(false)}
             onConfirm={doReset}
           />

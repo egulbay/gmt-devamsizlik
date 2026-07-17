@@ -473,6 +473,13 @@ export async function resetProfile(): Promise<void> {
       await db().settings.delete(SETTINGS_KEY);
     }
   );
+  // Sıfırlama sayfayı yeniden yüklemiyor, dolayısıyla bu bayrak "true" kalıp
+  // dönem onarımını kalıcı olarak devre dışı bırakıyordu. Oysa sıfırlama
+  // sonrası yeniden giriş, onarımın EN ÇOK gerektiği an: yerel DB boşken
+  // yaratılan hayalet dönem ile buluttan geri gelen gerçek dönem yan yana
+  // durur ve activeSemesterId hayaleti gösterirse kullanıcının dersleri
+  // görünmez olur. Onarımın tekrar çalışabilmesi için bayrağı düşür.
+  semestersRepaired = false;
 }
 
 // ---------------------------------------------------------------------------
