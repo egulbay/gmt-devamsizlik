@@ -124,7 +124,15 @@ async function rescueStrayCourses(active: Semester): Promise<void> {
     if (c.deleted || c.archived) continue;
     if (c.semesterId === active.id) continue;
     const home = semById.get(c.semesterId);
-    if (home && !home.deleted && home.active) continue;
+    // SADECE dönemi HİÇ OLMAYAN (referansı boşa düşmüş) dersler kurtarılır.
+    //
+    // Eskiden dönemi arşivlenmiş (active:false) ya da silinmiş (deleted:true)
+    // dersler de aktif döneme taşınıyordu. Bu, eski dersleri DİRİLTİYORDU:
+    // buluttan `archived:false` kalmış eski bir satır gelince ders güncel
+    // "Derslerim" listesine sızıyor, kullanıcı çoktan geride bıraktığı bir
+    // dersi tekrar görüyordu. Dönemi duruyorsa ders oraya aittir: arşivdeyse
+    // Geçmiş sekmesinde kalmalı, dönem silinmişse görünmemeli.
+    if (home) continue;
     const moved = { ...c, semesterId: active.id, updatedAt: now, clientId };
     await db().courses.put(moved);
     await enqueue("courses", c.id, "upsert", moved);
