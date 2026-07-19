@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Course, AbsenceRecord, Semester, Settings, SyncOp } from "../types";
+import type { Course, AbsenceRecord, Semester, Settings, SyncOp, Project } from "../types";
 
 // Offline-first local store. All user data lives here (IndexedDB) — never in
 // localStorage, per the architecture rules.
@@ -9,6 +9,7 @@ export class GmtDexie extends Dexie {
   semesters!: Table<Semester, string>;
   settings!: Table<Settings, string>;
   syncQueue!: Table<SyncOp, number>;
+  projects!: Table<Project, string>;
 
   constructor() {
     super("gmt-devamsizlik");
@@ -18,6 +19,12 @@ export class GmtDexie extends Dexie {
       semesters: "id, active, updatedAt, deleted",
       settings: "key",
       syncQueue: "++id, table, rowId, createdAt",
+    });
+    // v2: projeler/yapılacaklar özelliği (deneysel — henüz buluta senkronize
+    // edilmiyor, bkz. repo.ts'teki not). Var olan tabloları tekrar
+    // belirtmeye gerek yok, Dexie önceki sürümlerden devralır.
+    this.version(2).stores({
+      projects: "id, semesterId, courseId, dueDate, updatedAt, deleted",
     });
   }
 }

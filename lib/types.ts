@@ -47,6 +47,27 @@ export interface Semester {
   deleted: boolean;
 }
 
+export interface ProjectTodo {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  courseId: string | null; // isteğe bağlı — bu proje hangi derse ait
+  semesterId: string; // hangi döneme ait (course ile aynı yaşam döngüsü)
+  dueDate: string | null; // "YYYY-MM-DD", isteğe bağlı
+  notes?: string | null;
+  todos: ProjectTodo[];
+  completed: boolean;
+  createdAt: number;
+  updatedAt: number;
+  clientId: string;
+  deleted: boolean; // tombstone
+}
+
 export interface Settings {
   key: string; // "app"
   lang: Lang;

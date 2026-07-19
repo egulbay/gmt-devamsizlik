@@ -6,6 +6,8 @@ import type {
   Settings,
   Lang,
   Theme,
+  Project,
+  ProjectTodo,
 } from "../types";
 
 const SETTINGS_KEY = "app";
@@ -509,4 +511,97 @@ export async function migrateGuestToAccount(userId: string, userName: string | n
 
 export async function pendingSyncCount(): Promise<number> {
   return db().syncQueue.count();
+}
+
+// ---------------------------------------------------------------------------
+// Projects (deneysel)
+//
+// NOT: Bu tablo şu an buluta senkronize EDİLMİYOR — enqueue() bilerek
+// çağrılmıyor. syncEngine.ts / TABLE_MAP / Supabase şeması "projects"
+// tablosunu tanımıyor; enqueue etseydik kayıtlar sync kuyruğunda sonsuza
+// dek birikip hiç boşalmazdı. Özellik onaylanırsa buluta bağlamak ayrı bir
+// adım (grade/note alanlarını eklerken izlenen desenin aynısı: sync
+// mapping + Supabase migration).
+// ---------------------------------------------------------------------------
+
+export async function listActiveProjects(): Promise<Project[]> {
+  const sem = await ensureActiveSemester();
+  const all = await db().projects.where("semesterId").equals(sem.id).toArray();
+  return all
+    .filter((p) => !p.deleted)
+    .sort((a, b) => {
+      // Teslim tarihi olanlar önce (yakından uzağa); olmayanlar en sonda.
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return a.createdAt - b.createdAt;
+    });
+}
+
+export async function addProject(
+  name: string,
+  courseId: string | null,
+  dueDate: string | null,
+  notes?: string | null,
+): Promise<Project> {
+  const clientId = await getClientId();
+  const sem = await ensureActiveSemester();
+  const now = Date.now();
+  const project: Project = {
+    id: newId("prj"),
+    name: name.trim(),
+    courseId,
+    semesterId: sem.id,
+    dueDate,
+    notes: notes?.trim() || null,
+    todos: [],
+    completed: false,
+    createdAt: now,
+    updatedAt: now,
+    clientId,
+    deleted: false,
+  };
+  await db().projects.put(project);
+  return project;
+}
+
+export async function updateProject(
+  id: string,
+  patch: Partial<Pick<Project, "name" | "courseId" | "dueDate" | "notes" | "todos" | "completed">>,
+): Promise<Project | undefined> {
+  const cur = await db().projects.get(id);
+  if (!cur) return undefined;
+  const clientId = await getClientId();
+  const next = { ...cur, ...patch, updatedAt: Date.now(), clientId };
+  await db().projects.put(next);
+  return next;
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const cur = await db().projects.get(id);
+  if (!cur || cur.deleted) return;
+  const clientId = await getClientId();
+  await db().projects.put({ ...cur, deleted: true, updatedAt: Date.now(), clientId });
+}
+
+export async function addProjectTodo(projectId: string, text: string): Promise<Project | undefined> {
+  const cur = await db().projects.get(projectId);
+  if (!cur) return undefined;
+  const trimmed = text.trim();
+  if (!trimmed) return cur;
+  const todo: ProjectTodo = { id: newId("todo"), text: trimmed, done: false };
+  return updateProject(projectId, { todos: [...cur.todos, todo] });
+}
+
+export async function toggleProjectTodo(projectId: string, todoId: string): Promise<Project | undefined> {
+  const cur = await db().projects.get(projectId);
+  if (!cur) return undefined;
+  const todos = cur.todos.map((t) => (t.id === todoId ? { ...t, done: !t.done } : t));
+  return updateProject(projectId, { todos });
+}
+
+export async function deleteProjectTodo(projectId: string, todoId: string): Promise<Project | undefined> {
+  const cur = await db().projects.get(projectId);
+  if (!cur) return undefined;
+  return updateProject(projectId, { todos: cur.todos.filter((t) => t.id !== todoId) });
 }

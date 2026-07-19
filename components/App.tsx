@@ -4,7 +4,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tf, MONTHS } from "@/lib/i18n";
 import { ratioColor } from "@/lib/color";
-import type { AbsenceRecord, Course, Lang, Semester, Settings, SyncState, Theme } from "@/lib/types";
+import type { AbsenceRecord, Course, Lang, Project, ProjectTodo, Semester, Settings, SyncState, Theme } from "@/lib/types";
 import * as repo from "@/lib/db/repo";
 import { haptic, HAPTIC_PRESS, HAPTIC_TICK } from "@/lib/haptics";
 import { isCloudEnabled, supabase } from "@/lib/sync/supabaseClient";
@@ -20,7 +20,7 @@ import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/
 import { Calendar } from "./Calendar";
 import { CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 
-type Screen = "login" | "guestName" | "home" | "detail";
+type Screen = "login" | "guestName" | "home" | "detail" | "projects";
 type SortMode = "default" | "near" | "name" | "grade";
 
 // Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
@@ -54,6 +54,24 @@ function computeVM(c: Course, records: AbsenceRecord[]): CourseVM {
   return { ...c, used, remaining, ratio, warn: ratio >= 0.7, warnClass: ratio >= 1 ? "high" : "mid" };
 }
 
+function formatDue(dateStr: string, lang: Lang): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getDate()} ${MONTHS[lang][d.getMonth()]}`;
+}
+
+// Teslim tarihine göre rozet stili: geçmiş = kırmızı, 3 gün içi = turuncu,
+// tamamlanmış proje için her zaman nötr (artık aciliyeti yok).
+function dueBadgeClass(dateStr: string, completed: boolean): string {
+  if (completed) return "due-badge";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dateStr + "T00:00:00");
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays < 0) return "due-badge overdue";
+  if (diffDays <= 3) return "due-badge soon";
+  return "due-badge";
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -66,6 +84,25 @@ export default function App() {
   const [archivedSemesters, setArchivedSemesters] = useState<Semester[]>([]);
   const [archivedCourses, setArchivedCourses] = useState<Record<string, CourseVM[]>>({});
   const [expandedSem, setExpandedSem] = useState<string | null>(null);
+
+  // Projeler (deneysel) — aktif dönemin proje listesi.
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [projectSheet, setProjectSheet] = useState<{ editId: string | null } | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
+  const [projectDueDate, setProjectDueDate] = useState("");
+  const [projectNotes, setProjectNotes] = useState("");
+  const [newTodoText, setNewTodoText] = useState("");
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<string | null>(null);
+  // Uzun-basma düzenleme modu — derslerdekiyle AYNI mekanik ama bağımsız
+  // state: proje ekranı ile ders listeleri farklı ekranlar olduğu için
+  // (ör. dersleri seçerken projelere geçilirse) tek bir paylaşılan state
+  // yanlış öğeleri seçili gösterebilirdi.
+  const [projectEditMode, setProjectEditMode] = useState(false);
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
+  const [bulkDeleteProjectsConfirm, setBulkDeleteProjectsConfirm] = useState(false);
+  const projectEditModeRef = useRef(false);
 
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -152,6 +189,7 @@ export default function App() {
     setRecordsByCourse(recMap);
     setArchivedSemesters(arch);
     setArchivedCourses(archCourses);
+    setProjects(await repo.listActiveProjects());
   }, []);
 
   // ---- init ---------------------------------------------------------------
@@ -308,6 +346,11 @@ export default function App() {
     setEditMode(false);
     setSelected(new Set());
   }, []);
+  const clearProjectEditState = useCallback(() => {
+    projectEditModeRef.current = false;
+    setProjectEditMode(false);
+    setSelectedProjects(new Set());
+  }, []);
 
   useEffect(() => {
     const onPopState = (e: PopStateEvent) => {
@@ -318,10 +361,12 @@ export default function App() {
       // taban kayıt (Next'in kendi state'i) Aktif demektir.
       const tab: "active" | "past" = scr === "past" ? "past" : st?.tab ?? "active";
 
-      // Düzenleme modu ve detay ekranı yalnızca KENDİ kayıtları üstteyken açık
-      // kalır; başka bir kayda indiysek kapanırlar.
+      // Düzenleme modu ve üst-katman ekranları (detay, projeler) yalnızca
+      // KENDİ kayıtları üstteyken açık kalır; başka bir kayda indiysek kapanırlar.
       if (scr !== "edit" && editModeRef.current) clearEditState();
-      if (scr !== "detail" && screenRef.current === "detail") {
+      if (scr !== "project-edit" && projectEditModeRef.current) clearProjectEditState();
+      const isOverlay = screenRef.current === "detail" || screenRef.current === "projects";
+      if (scr !== "detail" && scr !== "projects" && isOverlay) {
         setSelectedCourseId(null);
         setScreen("home");
       }
@@ -329,7 +374,7 @@ export default function App() {
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [clearEditState]);
+  }, [clearEditState, clearProjectEditState]);
 
   // Enter long-press edit mode, pushing a history entry so the hardware/
   // gesture back button cancels it instead of leaving the app (guarded so a
@@ -354,6 +399,31 @@ export default function App() {
   }, [clearEditState]);
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Projeler için aynı uzun-basma düzenleme modeli — kendi history kaydı
+  // ("project-edit"), kendi seçim kümesi. Bkz. enterEditMode/exitEditMode.
+  const enterProjectEditMode = useCallback(() => {
+    if (projectEditModeRef.current) return;
+    projectEditModeRef.current = true;
+    setProjectEditMode(true);
+    window.history.pushState({ gmtScreen: "project-edit", tab: homeTabRef.current }, "");
+  }, []);
+  const exitProjectEditMode = useCallback(() => {
+    if (!projectEditModeRef.current) return;
+    if (window.history.state?.gmtScreen === "project-edit") {
+      window.history.back();
+    } else {
+      clearProjectEditState();
+    }
+  }, [clearProjectEditState]);
+  const toggleProjectSelected = useCallback((id: string) => {
+    setSelectedProjects((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -530,6 +600,84 @@ export default function App() {
       setScreen("home");
       setSelectedCourseId(null);
     }
+  };
+
+  // ---- projeler (deneysel) -------------------------------------------------
+  const openProjects = () => {
+    setSelectedProjectId(null);
+    setScreen("projects");
+    window.history.pushState({ gmtScreen: "projects", tab: homeTabRef.current }, "");
+  };
+  const closeProjects = () => {
+    if (window.history.state?.gmtScreen === "projects") {
+      window.history.back();
+    } else {
+      setScreen("home");
+      setSelectedProjectId(null);
+    }
+  };
+  const openAddProject = () => {
+    setProjectSheet({ editId: null });
+    setProjectName("");
+    setProjectCourseId(null);
+    setProjectDueDate("");
+    setProjectNotes("");
+  };
+  const openEditProject = (p: Project) => {
+    setProjectSheet({ editId: p.id });
+    setProjectName(p.name);
+    setProjectCourseId(p.courseId);
+    setProjectDueDate(p.dueDate ?? "");
+    setProjectNotes(p.notes ?? "");
+  };
+  const canSaveProject = projectName.trim().length > 0;
+  const saveProject = async () => {
+    const name = projectName.trim();
+    if (!name) return;
+    const dueDate = projectDueDate || null;
+    const notes = projectNotes.trim() || null;
+    if (projectSheet?.editId) {
+      await repo.updateProject(projectSheet.editId, { name, courseId: projectCourseId, dueDate, notes });
+    } else {
+      await repo.addProject(name, projectCourseId, dueDate, notes);
+    }
+    setProjectSheet(null);
+    await reload();
+  };
+  const doDeleteProject = async () => {
+    const id = pendingDeleteProjectId;
+    if (!id) return;
+    await repo.deleteProject(id);
+    setPendingDeleteProjectId(null);
+    if (selectedProjectId === id) closeProjects();
+    await reload();
+  };
+  const doBulkDeleteProjects = async () => {
+    const ids = [...selectedProjects];
+    for (const id of ids) await repo.deleteProject(id);
+    setBulkDeleteProjectsConfirm(false);
+    exitProjectEditMode();
+    await reload();
+  };
+  const toggleProjectCompleted = async (p: Project) => {
+    await repo.updateProject(p.id, { completed: !p.completed });
+    await reload();
+  };
+  const addTodo = async () => {
+    if (!selectedProjectId || !newTodoText.trim()) return;
+    await repo.addProjectTodo(selectedProjectId, newTodoText);
+    setNewTodoText("");
+    await reload();
+  };
+  const toggleTodo = async (todoId: string) => {
+    if (!selectedProjectId) return;
+    await repo.toggleProjectTodo(selectedProjectId, todoId);
+    await reload();
+  };
+  const removeTodo = async (todoId: string) => {
+    if (!selectedProjectId) return;
+    await repo.deleteProjectTodo(selectedProjectId, todoId);
+    await reload();
   };
 
   const prevMonth = () => {
@@ -780,6 +928,7 @@ export default function App() {
         {screen === "guestName" && renderGuestName()}
         {screen === "home" && renderHome()}
         {screen === "detail" && renderDetail()}
+        {screen === "projects" && renderProjects()}
 
         {toast && (
           <div className="notif-toast" role="status">
@@ -916,7 +1065,7 @@ export default function App() {
             <button className="icon-btn" onClick={toggleLang} aria-label="language">
               {lang === "tr" ? "EN" : "TR"}
             </button>
-            <button className="icon-btn" onClick={onBell} aria-label="notifications">🔔</button>
+            <button className="icon-btn" onClick={openProjects} aria-label="projects">📋</button>
           </div>
         </div>
 
@@ -1273,6 +1422,156 @@ export default function App() {
     );
   }
 
+  // ----------------------- projeler (deneysel) ------------------------------
+  function courseNameFor(id: string | null): string | null {
+    if (!id) return null;
+    return activeVMs.find((c) => c.id === id)?.name ?? null;
+  }
+
+  function renderProjectEditBar() {
+    if (!projectEditMode) return null;
+    return (
+      <div className="edit-bar">
+        <span className="fs13 fw7 sub">
+          {selectedProjects.size > 0 ? t.selectedProjectsCount(selectedProjects.size) : ""}
+        </span>
+        <div className="row" style={{ gap: 10 }}>
+          {selectedProjects.size > 0 && (
+            <button className="btn-danger-sm" onClick={() => setBulkDeleteProjectsConfirm(true)}>
+              <TrashIcon /> {t.deleteSelected}
+            </button>
+          )}
+          <button className="link-btn" onClick={exitProjectEditMode}>{t.doneEditing}</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderProjects() {
+    const selected = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) ?? null : null;
+    if (selected) return renderProjectDetail(selected);
+
+    return (
+      <div className="scr">
+        <div className="top-row">
+          <button className="icon-btn small" onClick={closeProjects}>‹</button>
+          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.projectsTitle}</div>
+          <div style={{ width: 32 }} />
+        </div>
+
+        {projects.length === 0 ? (
+          <div className="empty-state">
+            <div className="fw7 fs16">{t.noProjectsTitle}</div>
+            <div className="fs13 sub">{t.noProjectsDesc}</div>
+            <button className="btn-primary" onClick={openAddProject}>{t.addProjectBtn}</button>
+          </div>
+        ) : (
+          <>
+            {renderProjectEditBar()}
+            <div className="course-list">
+              {projects.map((p) => (
+                <ProjectCard
+                  key={p.id}
+                  p={p}
+                  courseLabel={courseNameFor(p.courseId)}
+                  dueLabel={p.dueDate ? formatDue(p.dueDate, lang) : null}
+                  dueClass={p.dueDate ? dueBadgeClass(p.dueDate, p.completed) : null}
+                  onClick={() => (projectEditMode ? toggleProjectSelected(p.id) : setSelectedProjectId(p.id))}
+                  onLongPress={() => {
+                    enterProjectEditMode();
+                    toggleProjectSelected(p.id);
+                  }}
+                  onDelete={() => setPendingDeleteProjectId(p.id)}
+                  onToggleCompleted={() => void toggleProjectCompleted(p)}
+                  editMode={projectEditMode}
+                  selected={selectedProjects.has(p.id)}
+                  t={t}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {projects.length > 0 && !projectEditMode && (
+          <button className="fab" onClick={openAddProject} aria-label="add-project">＋</button>
+        )}
+      </div>
+    );
+  }
+
+  function renderProjectDetail(p: Project) {
+    const cName = courseNameFor(p.courseId);
+    return (
+      <div className="scr">
+        <div className="top-row">
+          <button
+            className="icon-btn small"
+            onClick={() => setSelectedProjectId(null)}
+            aria-label="back-to-projects"
+          >
+            ‹
+          </button>
+          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{p.name}</div>
+          <div className="icon-row">
+            <button className="icon-btn small" onClick={() => openEditProject(p)} aria-label="edit-project">✎</button>
+            <button
+              className="icon-btn small"
+              onClick={() => setPendingDeleteProjectId(p.id)}
+              aria-label="delete-project"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </div>
+
+        <div className="row fs12 sub" style={{ gap: 8, flexWrap: "wrap" }}>
+          {cName && <span className="proj-course-tag">{cName}</span>}
+          {p.dueDate && <span className={dueBadgeClass(p.dueDate, p.completed)}>{formatDue(p.dueDate, lang)}</span>}
+        </div>
+
+        {p.notes && <div className="fs13" style={{ whiteSpace: "pre-wrap" }}>{p.notes}</div>}
+
+        <button className="btn-ghost" onClick={() => void toggleProjectCompleted(p)}>
+          {p.completed ? t.markIncomplete : t.markComplete}
+        </button>
+
+        <div className="field-label">{t.todosLabel}</div>
+        <div className="todo-list">
+          {p.todos.length === 0 && <div className="fs13 sub">{t.noTodos}</div>}
+          {p.todos.map((td) => (
+            <div className="todo-row" key={td.id}>
+              <button
+                className={`todo-check${td.done ? " on" : ""}`}
+                onClick={() => void toggleTodo(td.id)}
+                aria-label="toggle-todo"
+              >
+                {td.done ? <CheckIcon /> : null}
+              </button>
+              <span className={`fs14${td.done ? " todo-done" : ""}`} style={{ flex: 1 }}>{td.text}</span>
+              <button className="todo-del" onClick={() => void removeTodo(td.id)} aria-label="delete-todo">
+                <CloseIcon />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            className="input"
+            placeholder={t.newTodoPlaceholder}
+            value={newTodoText}
+            onChange={(e) => setNewTodoText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void addTodo();
+            }}
+          />
+          <button className="btn-primary" onClick={() => void addTodo()} disabled={!newTodoText.trim()}>
+            {t.addTodoBtn}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ----------------------- sheets ------------------------------------------
   function renderSheets() {
     return (
@@ -1317,6 +1616,83 @@ export default function App() {
         )}
 
         {dayPopover && renderDaySheet()}
+
+        {projectSheet && (
+          <>
+            <div className="scrim" onClick={() => setProjectSheet(null)} />
+            <div className="sheet">
+              <div className="sheet-handle" />
+              <div className="fw8 fs18">{projectSheet.editId ? t.editProjectTitle : t.newProjectTitle}</div>
+              <input
+                className="input"
+                placeholder={t.projectNamePlaceholder}
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                autoFocus
+              />
+              <div className="field-label">{t.projectCourseLabel}</div>
+              <select
+                className="sort-select"
+                style={{ width: "100%" }}
+                value={projectCourseId ?? ""}
+                onChange={(e) => setProjectCourseId(e.target.value || null)}
+              >
+                <option value="">{t.projectCourseNone}</option>
+                {activeVMs.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <div className="field-label">{t.projectDueLabel}</div>
+              <input
+                className="input"
+                type="date"
+                value={projectDueDate}
+                onChange={(e) => setProjectDueDate(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder={t.projectNotesPlaceholder}
+                value={projectNotes}
+                onChange={(e) => setProjectNotes(e.target.value)}
+              />
+              <div className="sheet-actions">
+                <button className="btn-secondary" onClick={() => setProjectSheet(null)}>{t.cancel}</button>
+                <button className="btn-primary" onClick={() => void saveProject()} disabled={!canSaveProject}>
+                  {t.save}
+                </button>
+              </div>
+              {projectSheet.editId && (
+                <button
+                  className="btn-reset"
+                  onClick={() => setPendingDeleteProjectId(projectSheet.editId)}
+                >
+                  <TrashIcon /> {t.deleteProject}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {pendingDeleteProjectId && (
+          <ConfirmSheet
+            title={t.deleteProjectTitle}
+            desc={t.deleteProjectDesc}
+            cancel={t.no}
+            confirm={t.yes}
+            onCancel={() => setPendingDeleteProjectId(null)}
+            onConfirm={doDeleteProject}
+          />
+        )}
+        {bulkDeleteProjectsConfirm && (
+          <ConfirmSheet
+            title={t.bulkDeleteProjectsTitle(selectedProjects.size)}
+            desc={t.bulkDeleteProjectsDesc}
+            cancel={t.no}
+            confirm={t.yes}
+            onCancel={() => setBulkDeleteProjectsConfirm(false)}
+            onConfirm={doBulkDeleteProjects}
+          />
+        )}
 
         {resetConfirm && (
           <ConfirmSheet
@@ -1586,6 +1962,136 @@ function GradeWheel({
           </div>
         ))}
         <div className="gw-pad" aria-hidden="true" />
+      </div>
+    </div>
+  );
+}
+
+// Ders kartındaki (CourseCard) uzun-basma/jiggle/toplu-seçim mekaniğinin
+// projeler için birebir kopyası. Ayrı bir bileşen olarak tutuluyor çünkü
+// içerik (ders adı+bar yerine proje adı+etiketler+tamamlandı çentiği)
+// yeterince farklı; jest/timer/haptic mantığı ise CourseCard ile AYNI.
+function ProjectCard({
+  p,
+  courseLabel,
+  dueLabel,
+  dueClass,
+  onClick,
+  onLongPress,
+  onDelete,
+  onToggleCompleted,
+  editMode,
+  selected,
+  t,
+}: {
+  p: Project;
+  courseLabel: string | null;
+  dueLabel: string | null;
+  dueClass: string | null;
+  onClick: () => void;
+  onLongPress?: () => void;
+  onDelete?: () => void;
+  onToggleCompleted: () => void;
+  editMode?: boolean;
+  selected?: boolean;
+  t: ReturnType<typeof tf>;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const longFired = useRef(false);
+
+  const clearTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!onLongPress || editMode) return;
+    if ((e.target as HTMLElement).closest(".cc-del, .cc-check, .proj-check")) return;
+    longFired.current = false;
+    start.current = { x: e.clientX, y: e.clientY };
+    clearTimer();
+    timer.current = setTimeout(() => {
+      longFired.current = true;
+      haptic(HAPTIC_PRESS);
+      onLongPress();
+    }, 450);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!start.current) return;
+    const dx = Math.abs(e.clientX - start.current.x);
+    const dy = Math.abs(e.clientY - start.current.y);
+    if (dx > 10 || dy > 10) clearTimer();
+  };
+  const endPress = () => {
+    clearTimer();
+    start.current = null;
+  };
+  const handleClick = () => {
+    if (longFired.current) {
+      longFired.current = false;
+      return;
+    }
+    onClick();
+  };
+  const doneCount = p.todos.filter((td) => td.done).length;
+
+  return (
+    <div
+      className={`course-card project-card${p.completed ? " completed" : ""}${editMode ? " jiggling" : ""}${selected ? " selected" : ""}`}
+      onClick={handleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endPress}
+      onPointerCancel={endPress}
+      onContextMenu={(e) => {
+        if (onLongPress) e.preventDefault();
+      }}
+    >
+      {editMode && (
+        <button
+          className="cc-del"
+          aria-label={t.deleteProject}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete?.();
+          }}
+        >
+          <CloseIcon />
+        </button>
+      )}
+      <div className="cc-top">
+        {editMode && (
+          <button
+            className={`cc-check${selected ? " on" : ""}`}
+            aria-label="select"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+          >
+            {selected && <CheckIcon />}
+          </button>
+        )}
+        <span className="fw7 fs16" style={{ flex: 1 }}>{p.name}</span>
+        {!editMode && (
+          <button
+            className="proj-check"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCompleted();
+            }}
+            aria-label="toggle-completed"
+          >
+            {p.completed ? <CheckIcon /> : null}
+          </button>
+        )}
+      </div>
+      <div className="row fs12 sub" style={{ gap: 8, flexWrap: "wrap" }}>
+        {courseLabel && <span className="proj-course-tag">{courseLabel}</span>}
+        {dueLabel && dueClass && <span className={dueClass}>{dueLabel}</span>}
+        {p.todos.length > 0 && <span>{doneCount}/{p.todos.length} {t.todoShort}</span>}
       </div>
     </div>
   );
