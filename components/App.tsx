@@ -340,6 +340,10 @@ export default function App() {
   useEffect(() => {
     homeTabRef.current = homeTab;
   }, [homeTab]);
+  const selectedProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedProjectIdRef.current = selectedProjectId;
+  }, [selectedProjectId]);
 
   const clearEditState = useCallback(() => {
     editModeRef.current = false;
@@ -365,6 +369,11 @@ export default function App() {
       // KENDİ kayıtları üstteyken açık kalır; başka bir kayda indiysek kapanırlar.
       if (scr !== "edit" && editModeRef.current) clearEditState();
       if (scr !== "project-edit" && projectEditModeRef.current) clearProjectEditState();
+      // Proje detayı yalnızca KENDİ kaydı ("project-detail") üstteyken açık
+      // kalır — başka bir kayda (ör. "projects" listesine) indiysek kapanır,
+      // böylece geri tuşu proje detayından Projelerim listesine döner,
+      // ana ekranı atlamaz.
+      if (scr !== "project-detail" && selectedProjectIdRef.current) setSelectedProjectId(null);
       const isOverlay = screenRef.current === "detail" || screenRef.current === "projects";
       if (scr !== "detail" && scr !== "projects" && isOverlay) {
         setSelectedCourseId(null);
@@ -616,6 +625,22 @@ export default function App() {
       setSelectedProjectId(null);
     }
   };
+  // Bir projenin detayını aç/kapat — kendi history kaydı ("project-detail")
+  // ile. Bu kayıt olmadan geri tuşu doğrudan "projects" kaydına (yani ana
+  // ekrana, çünkü detay ekranı listeyle aynı "projects" ekranı state'ini
+  // paylaşıyor) atlıyor, Projelerim listesini hiç göstermeden ana ekrana
+  // dönüyordu.
+  const openProjectDetail = (id: string) => {
+    setSelectedProjectId(id);
+    window.history.pushState({ gmtScreen: "project-detail", tab: homeTabRef.current }, "");
+  };
+  const closeProjectDetail = () => {
+    if (window.history.state?.gmtScreen === "project-detail") {
+      window.history.back();
+    } else {
+      setSelectedProjectId(null);
+    }
+  };
   const openAddProject = () => {
     setProjectSheet({ editId: null });
     setProjectName("");
@@ -649,7 +674,10 @@ export default function App() {
     if (!id) return;
     await repo.deleteProject(id);
     setPendingDeleteProjectId(null);
-    if (selectedProjectId === id) closeProjects();
+    // Silinen proje şu an açık olan detay ekranıysa, sadece o katmandan
+    // çık (Projelerim listesine dön) — tüm Projelerim ekranını kapatıp
+    // ana ekrana dönme (closeProjects) burada YANLIŞ olurdu.
+    if (selectedProjectId === id) closeProjectDetail();
     await reload();
   };
   const doBulkDeleteProjects = async () => {
@@ -1476,7 +1504,7 @@ export default function App() {
                   courseLabel={courseNameFor(p.courseId)}
                   dueLabel={p.dueDate ? formatDue(p.dueDate, lang) : null}
                   dueClass={p.dueDate ? dueBadgeClass(p.dueDate, p.completed) : null}
-                  onClick={() => (projectEditMode ? toggleProjectSelected(p.id) : setSelectedProjectId(p.id))}
+                  onClick={() => (projectEditMode ? toggleProjectSelected(p.id) : openProjectDetail(p.id))}
                   onLongPress={() => {
                     enterProjectEditMode();
                     toggleProjectSelected(p.id);
@@ -1506,7 +1534,7 @@ export default function App() {
         <div className="top-row">
           <button
             className="icon-btn small"
-            onClick={() => setSelectedProjectId(null)}
+            onClick={closeProjectDetail}
             aria-label="back-to-projects"
           >
             ‹
