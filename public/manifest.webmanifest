@@ -1,6 +1,6 @@
 {
   "name": "GMT Devamsızlık Takip",
-  "short_name": "GMT Devamsızlık",
+  "short_name": "GMT Takip",
   "description": "Üniversite ders devamsızlıklarını kolayca takip et.",
   "start_url": "/",
   "scope": "/",

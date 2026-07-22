@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "GMT Devamsızlık",
+    title: "GMT Takip",
   },
   icons: {
     icon: [
