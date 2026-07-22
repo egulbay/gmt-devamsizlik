@@ -13,7 +13,7 @@ export const WEEKDAYS: Record<Lang, string[]> = {
 export const TXT = {
   tr: {
     // login
-    loginTitle: "GMT Devamsızlık\nTakip",
+    loginTitle: "GMT Takip",
     loginSubtitle: "Geleceğin Meslekleri Topluluğu",
     welcomeTitle: "Hoş Geldiniz",
     welcomeDesc: "Devamsızlık durumunuzu takip etmek için giriş yapın.",
