@@ -18,7 +18,7 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { CheckIcon, CloseIcon, GlobeIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 
 type Screen = "login" | "guestName" | "home" | "detail" | "projects";
 type SortMode = "default" | "near" | "name" | "grade";
@@ -1090,10 +1090,11 @@ export default function App() {
             <button className="icon-btn" onClick={toggleTheme} aria-label="theme">
               {theme === "dark" ? <MoonIcon /> : <SunIcon />}
             </button>
-            <button className="icon-btn" onClick={toggleLang} aria-label="language">
-              {lang === "tr" ? "EN" : "TR"}
+            <button className="icon-btn lang-btn" onClick={toggleLang} aria-label="language">
+              <GlobeIcon />
+              <span>{lang === "tr" ? "EN" : "TR"}</span>
             </button>
-            <button className="icon-btn" onClick={openProjects} aria-label="projects">📋</button>
+            <button className="icon-btn" onClick={openProjects} aria-label="projects"><ProjectsIcon /></button>
           </div>
         </div>
 

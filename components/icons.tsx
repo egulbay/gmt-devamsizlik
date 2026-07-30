@@ -2,17 +2,35 @@ import * as React from "react";
 
 export function SunIcon() {
   return (
-    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="#F5A623" strokeWidth={2} strokeLinecap="round">
-      <circle cx="12" cy="12" r="4.2" fill="#FDB813" stroke="#FDB813" />
-      <path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5 5l1.6 1.6M17.4 17.4L19 19M19 5l-1.6 1.6M6.6 17.4L5 19" />
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+      <circle cx="12" cy="12" r="4.3" fill="currentColor" fillOpacity="0.16" />
+      <path d="M12 3v2.4M12 18.6V21M4.2 12H1.8M22.2 12h-2.4M6.3 6.3 4.6 4.6M19.4 19.4l-1.7-1.7M17.7 6.3l1.7-1.7M4.6 19.4l1.7-1.7" />
     </svg>
   );
 }
 
 export function MoonIcon() {
   return (
-    <svg className="ico-thm" viewBox="0 0 24 24">
-      <path d="M20 14.5A8 8 0 1 1 10.5 4a6.3 6.3 0 0 0 9.5 10.5z" fill="#C7CBD4" stroke="#AEB3BD" strokeWidth={1} />
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none">
+      <path d="M20.5 14.8A8.5 8.5 0 1 1 9.7 3.6a7 7 0 0 0 10.8 11.2Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function GlobeIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.3" />
+      <path d="M3.7 12h16.6M12 3.7c2.5 2.3 3.9 5.2 3.9 8.3s-1.4 6-3.9 8.3c-2.5-2.3-3.9-5.2-3.9-8.3s1.4-6 3.9-8.3Z" />
+    </svg>
+  );
+}
+
+export function ProjectsIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="3.3" width="14" height="17.4" rx="2.6" />
+      <path d="M8.5 8.7h7M8.5 12.4h7M8.5 16.1h4.4" />
     </svg>
   );
 }
