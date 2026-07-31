@@ -76,7 +76,7 @@ export const TXT = {
     editRecord: "Kaydı Düzenle",
     // notifications
     notifBtn: "Bildirim",
-    notifDemoTitle: "GMT Devamsızlık",
+    notifDemoTitle: "GMT Takip",
     enableNotifications: "Bildirimleri Aç",
     notifTwoLeft: (name: string) => `"${name}" dersinden 2 saat hakkın kaldı.`,
     notifWeekly: (name: string) => `Hatırlatma: "${name}" dersinde devamsızlık sınırına yaklaşıyorsun.`,
@@ -181,7 +181,7 @@ export const TXT = {
     bulkDeleteProjectsDesc: "Seçilen projeler ve yapılacaklar listeleri kalıcı olarak silinecek. Emin misiniz?",
   },
   en: {
-    loginTitle: "GMT Attendance Tracker",
+    loginTitle: "GMT Takip",
     loginSubtitle: "Community of Future Professions",
     welcomeTitle: "Welcome",
     welcomeDesc: "Sign in to track your attendance.",
@@ -240,7 +240,7 @@ export const TXT = {
     delete: "Delete",
     editRecord: "Edit Record",
     notifBtn: "Notify",
-    notifDemoTitle: "GMT Attendance",
+    notifDemoTitle: "GMT Takip",
     enableNotifications: "Enable Notifications",
     notifTwoLeft: (name: string) => `You have 2 hours left for "${name}".`,
     notifWeekly: (name: string) => `Reminder: you're approaching the absence limit for "${name}".`,

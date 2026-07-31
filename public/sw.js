@@ -1,4 +1,4 @@
-/* GMT Devamsızlık — Service Worker
+/* GMT Takip — Service Worker
  * - App-shell caching (offline-first)
  * - Background Sync tetikleyicisi (client'a mesaj gönderir)
  * - Web Push bildirimleri
@@ -95,7 +95,7 @@ self.addEventListener("sync", (event) => {
 
 // Web Push
 self.addEventListener("push", (event) => {
-  let data = { title: "GMT Devamsızlık", body: "" };
+  let data = { title: "GMT Takip", body: "" };
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch (_) {
