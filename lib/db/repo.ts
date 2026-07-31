@@ -524,6 +524,27 @@ export async function pendingSyncCount(): Promise<number> {
 // mapping + Supabase migration).
 // ---------------------------------------------------------------------------
 
+// Teslim tarihi bildirimleri için gün eşikleri — büyükten küçüğe.
+export const DUE_MILESTONES = [14, 7, 3, 1] as const;
+
+// Teslim tarihine kalan tam gün sayısı. dueBadgeClass ile aynı hesap
+// (yerel takvim günü farkı), böylece rozet ile bildirim aynı günü söyler.
+export function daysUntilDue(dueDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  return Math.round((due.getTime() - today.getTime()) / 86400000);
+}
+
+// Proje eklendiğinde/teslim tarihi değiştiğinde: kalan güne göre ARTIK
+// geçilmiş olan eşikleri baştan harcanmış say. Örn. 8 gün kala eklenen bir
+// proje için 14 eşiği hiç gönderilmez; 7/3/1 sırası geldikçe gönderilir.
+function consumedMilestonesFor(dueDate: string | null): number[] {
+  if (!dueDate) return [];
+  const left = daysUntilDue(dueDate);
+  return DUE_MILESTONES.filter((m) => m > left);
+}
+
 export async function listActiveProjects(): Promise<Project[]> {
   const sem = await ensureActiveSemester();
   const all = await db().projects.where("semesterId").equals(sem.id).toArray();
@@ -556,6 +577,7 @@ export async function addProject(
     notes: notes?.trim() || null,
     todos: [],
     completed: false,
+    notifiedDueMilestones: consumedMilestonesFor(dueDate),
     createdAt: now,
     updatedAt: now,
     clientId,
@@ -567,12 +589,20 @@ export async function addProject(
 
 export async function updateProject(
   id: string,
-  patch: Partial<Pick<Project, "name" | "courseId" | "dueDate" | "notes" | "todos" | "completed">>,
+  patch: Partial<
+    Pick<Project, "name" | "courseId" | "dueDate" | "notes" | "todos" | "completed" | "notifiedDueMilestones">
+  >,
 ): Promise<Project | undefined> {
   const cur = await db().projects.get(id);
   if (!cur) return undefined;
   const clientId = await getClientId();
   const next = { ...cur, ...patch, updatedAt: Date.now(), clientId };
+  // Teslim tarihi değiştiyse eşikleri yeni tarihe göre baştan kur — aksi
+  // halde tarihi ileri atılan bir proje eski "harcandı" işaretleriyle kalır
+  // ve yaklaşma bildirimlerini bir daha hiç göndermez.
+  if (patch.dueDate !== undefined && patch.dueDate !== cur.dueDate) {
+    next.notifiedDueMilestones = consumedMilestonesFor(patch.dueDate);
+  }
   await db().projects.put(next);
   return next;
 }

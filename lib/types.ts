@@ -62,6 +62,11 @@ export interface Project {
   notes?: string | null;
   todos: ProjectTodo[];
   completed: boolean;
+  // Teslim tarihi yaklaşma bildirimlerinden hangileri "harcandı" (gün
+  // cinsinden eşik: 14/7/3/1). Proje eklendiğinde teslim tarihi zaten o
+  // eşiğin içindeyse (ör. 8 gün kala eklendi → 14 eşiği) o eşik anında
+  // harcanmış sayılır; geçmiş bir eşik için bildirim gönderilmez.
+  notifiedDueMilestones?: number[];
   createdAt: number;
   updatedAt: number;
   clientId: string;

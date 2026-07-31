@@ -14,6 +14,7 @@ import {
   requestNotificationPermission,
   permission as notifPermission,
   evaluateNotifications,
+  evaluateProjectNotifications,
   notificationsSupported,
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
@@ -264,7 +265,6 @@ export default function App() {
         if (cancelled) return;
         setScreen("home");
         setReady(true);
-        if (isFreshSignIn) showToast(t.notifDemoTitle, t.welcome(name || ""));
       };
 
       if (isCloudEnabled()) {
@@ -456,13 +456,15 @@ export default function App() {
         recordsByCourse,
         lang
       );
-      if (alerts.length) {
-        showToast(t.notifDemoTitle, alerts[0].body);
+      const dueAlerts = await evaluateProjectNotifications(projects, lang);
+      const all = [...alerts, ...dueAlerts];
+      if (all.length) {
+        showToast(t.notifDemoTitle, all[0].body);
         void reload();
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeVMs.length, ready]);
+  }, [activeVMs.length, projects.length, ready]);
 
   const showToast = useCallback((title: string, body: string) => {
     setToast({ title, body });
@@ -510,7 +512,6 @@ export default function App() {
     await repo.patchSettings({ userName: name, isGuest: true });
     await reload();
     setScreen("home");
-    showToast(t.notifDemoTitle, t.welcome(name));
   };
 
   const goCreateAccount = () => setScreen("login");

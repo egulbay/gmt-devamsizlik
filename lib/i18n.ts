@@ -81,6 +81,16 @@ export const TXT = {
     notifTwoLeft: (name: string) => `"${name}" dersinden 2 saat hakkın kaldı.`,
     notifWeekly: (name: string) => `Hatırlatma: "${name}" dersinde devamsızlık sınırına yaklaşıyorsun.`,
     notifLimit: (name: string) => `"${name}" dersinde devamsızlık sınırına ulaştın!`,
+    notifDueIn: (name: string, days: number) =>
+      days <= 0
+        ? `"${name}" projesinin teslimi bugün!`
+        : days === 1
+        ? `"${name}" projesinin teslimine 1 gün kaldı!`
+        : days === 7
+          ? `"${name}" projesinin teslimine 1 hafta kaldı.`
+          : days === 14
+            ? `"${name}" projesinin teslimine 2 hafta kaldı.`
+            : `"${name}" projesinin teslimine ${days} gün kaldı.`,
     // units / misc
     saUnit: "saat",
     hour: "saat",
@@ -235,6 +245,16 @@ export const TXT = {
     notifTwoLeft: (name: string) => `You have 2 hours left for "${name}".`,
     notifWeekly: (name: string) => `Reminder: you're approaching the absence limit for "${name}".`,
     notifLimit: (name: string) => `You've reached the absence limit for "${name}"!`,
+    notifDueIn: (name: string, days: number) =>
+      days <= 0
+        ? `"${name}" is due today!`
+        : days === 1
+        ? `"${name}" is due in 1 day!`
+        : days === 7
+          ? `"${name}" is due in 1 week.`
+          : days === 14
+            ? `"${name}" is due in 2 weeks.`
+            : `"${name}" is due in ${days} days.`,
     saUnit: "hours",
     hour: "hours",
     resetProfile: "Reset / Switch Profile",

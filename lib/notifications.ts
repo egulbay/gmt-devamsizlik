@@ -1,6 +1,6 @@
 import { tf } from "./i18n";
-import { updateCourse } from "./db/repo";
-import type { Course, AbsenceRecord, Lang } from "./types";
+import { updateCourse, updateProject, DUE_MILESTONES, daysUntilDue } from "./db/repo";
+import type { Course, AbsenceRecord, Lang, Project } from "./types";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -47,7 +47,47 @@ export async function showLocalNotification(title: string, body: string, tag?: s
 export interface AlertResult {
   courseId: string;
   body: string;
-  kind: "twoLeft" | "weekly" | "limit";
+  kind: "twoLeft" | "weekly" | "limit" | "projectDue";
+}
+
+// Teslim tarihi yaklaşan projeler için 14/7/3/1 gün eşiklerinde tek seferlik
+// bildirim. Bir eşik geçildiğinde "harcandı" olarak işaretlenir; aynı eşik
+// için bir daha bildirim gitmez. Proje eklenirken zaten geçilmiş olan
+// eşikler addProject/updateProject tarafında baştan harcanmış sayılır — yani
+// 8 gün kala eklenen bir projede 14 eşiği hiç tetiklenmez, 7/3/1 tetiklenir.
+export async function evaluateProjectNotifications(
+  projects: Project[],
+  lang: Lang,
+): Promise<AlertResult[]> {
+  const t = tf(lang);
+  const alerts: AlertResult[] = [];
+
+  for (const p of projects) {
+    if (p.deleted || p.completed || !p.dueDate) continue;
+    const left = daysUntilDue(p.dueDate);
+    if (left < 0) continue; // teslim tarihi geçmiş — artık hatırlatma yok
+
+    const done = p.notifiedDueMilestones ?? [];
+    // Girilen EN DAR eşik (14/7/3/1 arasında left'i kapsayan en küçüğü).
+    // En büyüğünü seçmek yanlış olurdu: uygulama bir süre hiç açılmadıysa
+    // 2 gün kala hâlâ 7 eşiği harcanmamış olur ve "1 hafta kaldı" derdi.
+    const candidates = DUE_MILESTONES.filter((m) => left <= m);
+    const hit = candidates[candidates.length - 1];
+    if (hit === undefined || done.includes(hit)) continue;
+
+    // Metin gerçek kalan günle kurulur (eşik etiketiyle değil) — zamanında
+    // tetiklendiğinde zaten left === hit olur ve "1 hafta / 2 hafta" der.
+    const body = t.notifDueIn(p.name, left);
+    alerts.push({ courseId: p.id, body, kind: "projectDue" });
+    await showLocalNotification(t.notifDemoTitle, body, "gmt-due-" + p.id);
+    // Bu eşik ve ondan büyük tüm eşikleri harcanmış say — arada uygulama hiç
+    // açılmadıysa (ör. 14'ten 2 güne atlandıysa) geçmiş eşikler için art arda
+    // bildirim yağmuru olmasın.
+    await updateProject(p.id, {
+      notifiedDueMilestones: Array.from(new Set([...done, ...DUE_MILESTONES.filter((m) => m >= hit)])),
+    });
+  }
+  return alerts;
 }
 
 // Evaluate threshold logic across courses. Returns any alerts fired, and
