@@ -1062,3 +1062,109 @@ a {
   padding: 4px;
   flex-shrink: 0;
 }
+
+/* ---- Ders programı (fotoğraf) ---- */
+.sch-empty-ic {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.sch-empty-ic .ico-thm { width: 30px; height: 30px; }
+.sch-list { display: flex; flex-direction: column; gap: 14px; }
+.sch-card { position: relative; }
+.sch-thumb {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  overflow: hidden;
+  position: relative;
+}
+.sch-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: cover;
+  object-position: top;
+}
+.sch-open-chip {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sch-del {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+/* Tam ekran görüntüleyici — tema ne olursa olsun koyu zemin (fotoğraf
+   izlemenin alışılmış görünümü). */
+.sv-root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #000;
+}
+.sv-box {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sv-img {
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: center center;
+  will-change: transform;
+  -webkit-user-drag: none;
+}
+.sv-close {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sv-hint {
+  position: absolute;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}

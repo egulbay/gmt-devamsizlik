@@ -73,6 +73,16 @@ export interface Project {
   deleted: boolean; // tombstone
 }
 
+// Ders programı fotoğrafı — yalnızca bu cihazda (IndexedDB) saklanır,
+// buluta senkronize edilmez.
+export interface ScheduleImage {
+  id: string;
+  blob: Blob;
+  width: number;
+  height: number;
+  createdAt: number;
+}
+
 export interface Settings {
   key: string; // "app"
   lang: Lang;

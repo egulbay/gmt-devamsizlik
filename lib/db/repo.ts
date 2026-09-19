@@ -8,6 +8,7 @@ import type {
   Theme,
   Project,
   ProjectTodo,
+  ScheduleImage,
 } from "../types";
 
 const SETTINGS_KEY = "app";
@@ -469,16 +470,13 @@ export async function clearRecordsForCourse(courseId: string): Promise<void> {
 export async function resetProfile(): Promise<void> {
   await db().transaction(
     "rw",
-    db().courses,
-    db().records,
-    db().semesters,
-    db().settings,
-    db().syncQueue,
+    [db().courses, db().records, db().semesters, db().settings, db().syncQueue, db().scheduleImages],
     async () => {
       await db().courses.clear();
       await db().records.clear();
       await db().semesters.clear();
       await db().syncQueue.clear();
+      await db().scheduleImages.clear();
       // keep _client id; drop app settings
       await db().settings.delete(SETTINGS_KEY);
     }
@@ -634,4 +632,51 @@ export async function deleteProjectTodo(projectId: string, todoId: string): Prom
   const cur = await db().projects.get(projectId);
   if (!cur) return undefined;
   return updateProject(projectId, { todos: cur.todos.filter((t) => t.id !== todoId) });
+}
+
+// ---------------------------------------------------------------------------
+// Ders programı fotoğrafları
+//
+// Yalnızca bu cihazda saklanır (buluta gitmez). Telefon kameraları 5-12 MB'lık
+// fotoğraflar üretiyor; IndexedDB'yi şişirmemek için uzun kenarı en fazla
+// 2400px olacak şekilde küçültüp JPEG'e çeviriyoruz — tablo yazıları bu
+// çözünürlükte hâlâ rahat okunuyor.
+// ---------------------------------------------------------------------------
+const SCHEDULE_MAX_SIDE = 2400;
+
+async function compressImage(file: Blob): Promise<{ blob: Blob; width: number; height: number }> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const ratio = Math.min(1, SCHEDULE_MAX_SIDE / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * ratio);
+    const h = Math.round(bmp.height * ratio);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d context");
+    ctx.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.88));
+    if (!blob) throw new Error("toBlob failed");
+    return { blob, width: w, height: h };
+  } catch {
+    // Tarayıcı bu biçimi çözemediyse (ör. bazı HEIC'ler) orijinali sakla.
+    return { blob: file, width: 0, height: 0 };
+  }
+}
+
+export async function listScheduleImages(): Promise<ScheduleImage[]> {
+  return db().scheduleImages.orderBy("createdAt").toArray();
+}
+
+export async function addScheduleImage(file: Blob): Promise<ScheduleImage> {
+  const { blob, width, height } = await compressImage(file);
+  const img: ScheduleImage = { id: newId("sch"), blob, width, height, createdAt: Date.now() };
+  await db().scheduleImages.put(img);
+  return img;
+}
+
+export async function deleteScheduleImage(id: string): Promise<void> {
+  await db().scheduleImages.delete(id);
 }

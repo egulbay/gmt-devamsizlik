@@ -19,9 +19,10 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { CheckIcon, CloseIcon, GlobeIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { CalendarIcon, CheckIcon, CloseIcon, GlobeIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import ScheduleViewer from "./ScheduleViewer";
 
-type Screen = "login" | "guestName" | "home" | "detail" | "projects";
+type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule";
 type SortMode = "default" | "near" | "name" | "grade";
 
 // Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
@@ -85,6 +86,14 @@ export default function App() {
   const [archivedSemesters, setArchivedSemesters] = useState<Semester[]>([]);
   const [archivedCourses, setArchivedCourses] = useState<Record<string, CourseVM[]>>({});
   const [expandedSem, setExpandedSem] = useState<string | null>(null);
+
+  // Ders programı fotoğrafları — blob'lar IndexedDB'de, ekranda object URL
+  // ile gösteriliyor (URL'ler liste değişince serbest bırakılıyor).
+  const [scheduleImgs, setScheduleImgs] = useState<{ id: string; url: string; w: number; h: number }[]>([]);
+  const [scheduleViewId, setScheduleViewId] = useState<string | null>(null);
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [pendingDeleteScheduleId, setPendingDeleteScheduleId] = useState<string | null>(null);
+  const scheduleFileRef = useRef<HTMLInputElement>(null);
 
   // Projeler (deneysel) — aktif dönemin proje listesi.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -344,6 +353,10 @@ export default function App() {
   useEffect(() => {
     selectedProjectIdRef.current = selectedProjectId;
   }, [selectedProjectId]);
+  const scheduleViewIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    scheduleViewIdRef.current = scheduleViewId;
+  }, [scheduleViewId]);
 
   const clearEditState = useCallback(() => {
     editModeRef.current = false;
@@ -374,8 +387,12 @@ export default function App() {
       // böylece geri tuşu proje detayından Projelerim listesine döner,
       // ana ekranı atlamaz.
       if (scr !== "project-detail" && selectedProjectIdRef.current) setSelectedProjectId(null);
-      const isOverlay = screenRef.current === "detail" || screenRef.current === "projects";
-      if (scr !== "detail" && scr !== "projects" && isOverlay) {
+      // Tam ekran program görüntüleyici de kendi kaydıyla ("schedule-view")
+      // açılır: geri tuşu önce görüntüleyiciyi kapatır, sonra listeye döner.
+      if (scr !== "schedule-view" && scheduleViewIdRef.current) setScheduleViewId(null);
+      const isOverlay =
+        screenRef.current === "detail" || screenRef.current === "projects" || screenRef.current === "schedule";
+      if (scr !== "detail" && scr !== "projects" && scr !== "schedule" && scr !== "schedule-view" && isOverlay) {
         setSelectedCourseId(null);
         setScreen("home");
       }
@@ -642,6 +659,72 @@ export default function App() {
       setSelectedProjectId(null);
     }
   };
+  // ---- ders programı fotoğrafları ------------------------------------------
+  const loadScheduleImages = useCallback(async () => {
+    const rows = await repo.listScheduleImages();
+    setScheduleImgs((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.url));
+      return rows.map((r) => ({ id: r.id, url: URL.createObjectURL(r.blob), w: r.width, h: r.height }));
+    });
+  }, []);
+  // Ekran kapanınca blob URL'lerini bırak — büyük fotoğraflar belleği tutmasın.
+  useEffect(() => {
+    if (screen !== "schedule") {
+      setScheduleImgs((prev) => {
+        prev.forEach((p) => URL.revokeObjectURL(p.url));
+        return prev.length ? [] : prev;
+      });
+    }
+  }, [screen]);
+
+  const openSchedule = () => {
+    setScheduleViewId(null);
+    setScreen("schedule");
+    window.history.pushState({ gmtScreen: "schedule", tab: homeTabRef.current }, "");
+    void loadScheduleImages();
+  };
+  const closeSchedule = () => {
+    if (window.history.state?.gmtScreen === "schedule") {
+      window.history.back();
+    } else {
+      setScreen("home");
+      setScheduleViewId(null);
+    }
+  };
+  const openScheduleViewer = (id: string) => {
+    setScheduleViewId(id);
+    window.history.pushState({ gmtScreen: "schedule-view", tab: homeTabRef.current }, "");
+  };
+  const closeScheduleViewer = () => {
+    if (window.history.state?.gmtScreen === "schedule-view") {
+      window.history.back();
+    } else {
+      setScheduleViewId(null);
+    }
+  };
+  const onSchedulePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    // Aynı dosyayı art arda seçebilmek için input'u sıfırla.
+    e.target.value = "";
+    if (!files.length) return;
+    setScheduleBusy(true);
+    try {
+      for (const f of files) await repo.addScheduleImage(f);
+      await loadScheduleImages();
+    } catch {
+      showToast(t.notifDemoTitle, t.scheduleAddFailed);
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
+  const doDeleteScheduleImage = async () => {
+    const id = pendingDeleteScheduleId;
+    setPendingDeleteScheduleId(null);
+    if (!id) return;
+    await repo.deleteScheduleImage(id);
+    await loadScheduleImages();
+  };
+
   const openAddProject = () => {
     setProjectSheet({ editId: null });
     setProjectName("");
@@ -958,6 +1041,7 @@ export default function App() {
         {screen === "home" && renderHome()}
         {screen === "detail" && renderDetail()}
         {screen === "projects" && renderProjects()}
+        {screen === "schedule" && renderSchedule()}
 
         {toast && (
           <div className="notif-toast" role="status">
@@ -1095,6 +1179,7 @@ export default function App() {
               <GlobeIcon />
               <span>{lang === "tr" ? "EN" : "TR"}</span>
             </button>
+            <button className="icon-btn" onClick={openSchedule} aria-label="schedule"><CalendarIcon /></button>
             <button className="icon-btn" onClick={openProjects} aria-label="projects"><ProjectsIcon /></button>
           </div>
         </div>
@@ -1473,6 +1558,83 @@ export default function App() {
           )}
           <button className="link-btn" onClick={exitProjectEditMode}>{t.doneEditing}</button>
         </div>
+      </div>
+    );
+  }
+
+  function renderSchedule() {
+    const viewing = scheduleViewId ? scheduleImgs.find((i) => i.id === scheduleViewId) ?? null : null;
+    const pick = () => scheduleFileRef.current?.click();
+    return (
+      <div className="scr">
+        <div className="top-row">
+          <button className="icon-btn small" onClick={closeSchedule}>‹</button>
+          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.scheduleTitle}</div>
+          <div style={{ width: 32 }} />
+        </div>
+
+        {/* accept="image/*": telefonda hem kamera hem galeri seçeneği çıkar. */}
+        <input
+          ref={scheduleFileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => void onSchedulePicked(e)}
+        />
+
+        {scheduleImgs.length === 0 ? (
+          <div className="empty-state">
+            <div className="sch-empty-ic"><CalendarIcon /></div>
+            <div className="fw7 fs16">{t.noScheduleTitle}</div>
+            <div className="fs13 sub">{t.noScheduleDesc}</div>
+            <button className="btn-primary" onClick={pick} disabled={scheduleBusy}>
+              {scheduleBusy ? t.scheduleSaving : t.addSchedulePhoto}
+            </button>
+            <div className="fs12 sub">{t.scheduleLocalHint}</div>
+          </div>
+        ) : (
+          <>
+            <div className="sch-list">
+              {scheduleImgs.map((img) => (
+                <div key={img.id} className="sch-card">
+                  <button className="sch-thumb" onClick={() => openScheduleViewer(img.id)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt={t.scheduleTitle}
+                      style={img.w && img.h ? { aspectRatio: `${img.w} / ${img.h}` } : undefined}
+                    />
+                    <span className="sch-open-chip">{t.scheduleTapToOpen}</span>
+                  </button>
+                  <button
+                    className="icon-btn small sch-del"
+                    onClick={() => setPendingDeleteScheduleId(img.id)}
+                    aria-label="delete-schedule"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="btn-ghost" onClick={pick} disabled={scheduleBusy}>
+              {scheduleBusy ? t.scheduleSaving : t.addAnotherSchedulePhoto}
+            </button>
+            <div className="fs12 sub" style={{ textAlign: "center" }}>{t.scheduleLocalHint}</div>
+          </>
+        )}
+
+        {viewing && <ScheduleViewer src={viewing.url} hint={t.scheduleZoomHint} onClose={closeScheduleViewer} />}
+        {pendingDeleteScheduleId && (
+          <ConfirmSheet
+            title={t.deleteScheduleTitle}
+            desc={t.deleteScheduleDesc}
+            cancel={t.no}
+            confirm={t.yes}
+            onCancel={() => setPendingDeleteScheduleId(null)}
+            onConfirm={() => void doDeleteScheduleImage()}
+          />
+        )}
       </div>
     );
   }

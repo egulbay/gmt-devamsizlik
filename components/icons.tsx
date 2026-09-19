@@ -35,6 +35,16 @@ export function ProjectsIcon() {
   );
 }
 
+export function CalendarIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.8" y="5" width="16.4" height="15.2" rx="2.6" />
+      <path d="M3.8 9.6h16.4M8.2 3.2v3.4M15.8 3.2v3.4" />
+      <path d="M8 13.3h.01M12 13.3h.01M16 13.3h.01M8 16.6h.01M12 16.6h.01" strokeWidth={2.4} />
+    </svg>
+  );
+}
+
 export function GoogleIcon() {
   return (
     <span className="g-badge">
