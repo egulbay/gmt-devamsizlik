@@ -186,32 +186,41 @@ export async function pullRemote(): Promise<void> {
         createdAt: Date.parse(s.updated_at),
       } as Semester);
     }
+    // grade/note sütunları Supabase'de yoksa (migration çalıştırılmamış)
+    // select("*") bu anahtarları HİÇ döndürmez. Eskiden `c.grade ?? null`
+    // bunu "sınıf yok" diye okuyup yereldeki sınıfın üzerine null yazıyordu:
+    // push aynı updated_at ile gittiği için birleştirme bulutu kazanan sayıyor
+    // ve sınıf etiketi uygulama her açıldığında siliniyordu. Artık alan
+    // yalnızca bulut satırında gerçekten varsa taşınıyor; yoksa yerel değer
+    // korunuyor.
     for (const c of crs ?? []) {
-      await mergeLocal("courses", {
+      const remote = {
         id: c.id,
         name: c.name,
         totalHours: c.total_hours,
         semesterId: c.semester_id,
         archived: c.archived,
-        grade: c.grade ?? null,
         deleted: c.deleted,
         updatedAt: Date.parse(c.updated_at),
         clientId: c.client_id,
         createdAt: Date.parse(c.updated_at),
-      } as Course);
+      } as Course;
+      if ("grade" in c) remote.grade = c.grade ?? null;
+      await mergeLocal("courses", remote);
     }
     for (const r of recs ?? []) {
-      await mergeLocal("records", {
+      const remote = {
         id: r.id,
         courseId: r.course_id,
         date: r.date,
         hours: r.hours,
-        note: r.note ?? null,
         deleted: r.deleted,
         updatedAt: Date.parse(r.updated_at),
         clientId: r.client_id,
         createdAt: Date.parse(r.updated_at),
-      } as AbsenceRecord);
+      } as AbsenceRecord;
+      if ("note" in r) remote.note = r.note ?? null;
+      await mergeLocal("records", remote);
     }
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("gmt-data-changed"));
   } catch (e) {
