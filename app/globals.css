@@ -1263,3 +1263,28 @@ a {
   line-height: 1.1;
 }
 .cc-quick:active { transform: scale(0.95); }
+
+/* ---- Açılış iskeleti ---- */
+.sk {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--track) 25%, var(--surface) 50%, var(--track) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.3s ease-in-out infinite;
+}
+.sk-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sk-card .sk { background-color: var(--track); }
+@keyframes sk-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk { animation: none; }
+}

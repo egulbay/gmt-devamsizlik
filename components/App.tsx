@@ -1050,9 +1050,38 @@ export default function App() {
   }, [selectedRecords]);
 
   if (!ready || !settings) {
+    // Profili olan kullanıcı açılışta (özellikle hesaplıysa: buluttan veri
+    // çekilirken) bomboş bir ekran görüyordu, sonra her şey birden beliriyordu.
+    // Artık ana ekranın gri bir iskeleti gösteriliyor; veri gelince aynı yere
+    // oturuyor, ekran zıplamıyor. Profil yoksa (giriş ekranı gelecek) iskelet
+    // göstermiyoruz — yoksa giriş ekranından önce yanıltıcı bir liste yanıp söner.
+    const showSkeleton = !!settings?.userName;
     return (
-      <div className={`app-root thm-${theme}`}>
-        <div className="app-shell" />
+      <div className={`app-root thm-${theme}`} data-theme={theme}>
+        <div className={`app-shell thm-${theme}`}>
+          {showSkeleton && (
+            <div className="scr" aria-busy="true" aria-label="loading">
+              <div className="top-row">
+                <div className="stack" style={{ gap: 8 }}>
+                  <div className="sk" style={{ width: 150, height: 24 }} />
+                  <div className="sk" style={{ width: 110, height: 13 }} />
+                </div>
+              </div>
+              {settings!.isGuest && <div className="sk" style={{ height: 46, borderRadius: 12 }} />}
+              <div className="sk" style={{ height: 40, borderRadius: 12 }} />
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="sk-card">
+                  <div className="sk" style={{ width: "55%", height: 16 }} />
+                  <div className="sk" style={{ height: 8 }} />
+                  <div className="row between">
+                    <div className="sk" style={{ width: "32%", height: 12 }} />
+                    <div className="sk" style={{ width: "28%", height: 12 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
