@@ -346,6 +346,25 @@ export default function App() {
     };
   }, []);
 
+  // İlk açılış tanıtımı (3 adım). Yalnızca YENİ kullanıcıya: ana ekrana hiç
+  // dersi olmadan ilk kez gelen. Zaten dersi olan mevcut kullanıcılar sessizce
+  // "görüldü" işaretlenir, onlara hiç gösterilmez.
+  const [introStep, setIntroStep] = useState<number | null>(null);
+  useEffect(() => {
+    if (!ready || !settings || settings.onboarded || screen !== "home" || introStep !== null) return;
+    if (activeVMs.length > 0) {
+      void repo.patchSettings({ onboarded: true });
+      setSettings((s) => (s ? { ...s, onboarded: true } : s));
+    } else {
+      setIntroStep(0);
+    }
+  }, [ready, settings, screen, activeVMs.length, introStep]);
+  const finishIntro = () => {
+    setIntroStep(null);
+    setSettings((s) => (s ? { ...s, onboarded: true } : s));
+    void repo.patchSettings({ onboarded: true });
+  };
+
   // Ana ekrandan açılan "Bugün gelmedim" penceresi kapanınca seçili dersi
   // bırak — yoksa "dışa aktar" gibi seçili derse bakan yerler yanılırdı.
   useEffect(() => {
@@ -1135,6 +1154,7 @@ export default function App() {
           <div className="offline-strip" role="status">{t.offlineNotice}</div>
         )}
         {showNav && renderTabBar()}
+        {introStep !== null && renderIntro()}
         {renderSheets()}
       </div>
     </div>
@@ -1612,6 +1632,47 @@ export default function App() {
           <button className="link-btn" onClick={exitProjectEditMode}>{t.doneEditing}</button>
         </div>
       </div>
+    );
+  }
+
+  function renderIntro() {
+    const steps = [
+      { icon: <BookIcon />, title: t.introTitle1, body: t.introBody1 },
+      { icon: <CalendarIcon />, title: t.introTitle2, body: t.introBody2 },
+      { icon: <BellIcon />, title: t.introTitle3, body: t.introBody3 },
+    ];
+    const i = introStep ?? 0;
+    const st = steps[i];
+    const last = i === steps.length - 1;
+    return (
+      <>
+        <div className="scrim" />
+        <div className="sheet intro-sheet" role="dialog" aria-modal="true">
+          <div className="intro-ic">{st.icon}</div>
+          <div className="fw8 fs18 tc">{st.title}</div>
+          <div className="fs14 sub tc">{st.body}</div>
+          <div className="intro-dots">
+            {steps.map((_, k) => (
+              <span key={k} className={k === i ? "on" : ""} />
+            ))}
+          </div>
+          {last && notificationsSupported() && notifPerm === "default" && (
+            <button className="btn-ghost" onClick={() => void enableNotifications()}>
+              <BellIcon /> {t.enableNotifications}
+            </button>
+          )}
+          <div className="sheet-actions">
+            {!last ? (
+              <>
+                <button className="btn-secondary" onClick={finishIntro}>{t.introSkip}</button>
+                <button className="btn-primary" onClick={() => setIntroStep(i + 1)}>{t.introNext}</button>
+              </>
+            ) : (
+              <button className="btn-primary" onClick={finishIntro}>{t.introStart}</button>
+            )}
+          </div>
+        </div>
+      </>
     );
   }
 

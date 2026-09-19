@@ -175,6 +175,16 @@ export const TXT = {
     bulkDeleteProjectsTitle: (n: number) => `${n} proje silinsin mi?`,
     bulkDeleteProjectsDesc: "Seçilen projeler ve yapılacaklar listeleri kalıcı olarak silinecek. Emin misiniz?",
     offlineNotice: "Çevrimdışısın · değişiklikler bağlanınca yedeklenecek",
+    // ilk açılış tanıtımı
+    introTitle1: "Derslerini ekle",
+    introBody1: "＋ butonuyla her dersi ve o dönemki toplam devamsızlık hakkını (saat) gir.",
+    introTitle2: "Gelmediğin günü işaretle",
+    introBody2: "Karttaki “+ Bugün” ile ya da dersin takviminden devamsızlığını saniyeler içinde işle.",
+    introTitle3: "Sınıra yaklaşınca haber verelim",
+    introBody3: "Hakkın azaldığında ve proje teslimi yaklaştığında bildirim gönderelim.",
+    introSkip: "Geç",
+    introNext: "İleri",
+    introStart: "Başla",
     // hızlı devamsızlık
     quickAbsent: "+ Bugün",
     quickAbsentAria: "Bugün gelmedim",
@@ -364,6 +374,16 @@ export const TXT = {
     bulkDeleteProjectsTitle: (n: number) => `Delete ${n} project(s)?`,
     bulkDeleteProjectsDesc: "The selected projects and their to-do lists will be permanently deleted. Are you sure?",
     offlineNotice: "You're offline · changes will sync when you reconnect",
+    // first-run intro
+    introTitle1: "Add your courses",
+    introBody1: "Use ＋ to add each course and its total absence allowance (hours) for the term.",
+    introTitle2: "Mark the days you missed",
+    introBody2: "Log an absence in seconds with “+ Today” on the card, or from the course calendar.",
+    introTitle3: "We'll warn you near the limit",
+    introBody3: "Get a notification when your allowance runs low or a project deadline gets close.",
+    introSkip: "Skip",
+    introNext: "Next",
+    introStart: "Get started",
     // quick absence
     quickAbsent: "+ Today",
     quickAbsentAria: "I missed class today",

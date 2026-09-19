@@ -92,6 +92,8 @@ export interface Settings {
   userId: string | null; // supabase user id (hesaplı kullanıcı)
   activeSemesterId: string | null;
   notificationsEnabled: boolean;
+  // İlk açılış tanıtımı gösterildi/atlandı mı (yalnızca yerel).
+  onboarded?: boolean;
   updatedAt: number;
 }
 

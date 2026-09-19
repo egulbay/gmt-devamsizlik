@@ -1309,3 +1309,31 @@ a {
   font-weight: 700;
   z-index: 95;
 }
+
+/* ---- İlk açılış tanıtımı ---- */
+.intro-sheet { align-items: stretch; gap: 12px; padding-top: 26px; }
+.intro-ic {
+  align-self: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 22px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.intro-ic .ico-thm { width: 32px; height: 32px; }
+.intro-dots { display: flex; justify-content: center; gap: 6px; margin: 4px 0; }
+.intro-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--track); transition: width 0.2s; }
+.intro-dots span.on { width: 20px; border-radius: 4px; background: var(--accent); }
+
+/* ---- Ekran geçişi ----
+   Yalnızca opaklık: transform kullanmak .scr'yi position:fixed çocukları
+   (＋ butonu, fotoğraf görüntüleyici) için kapsayıcı yapar ve animasyon
+   süresince onlar yanlış yere zıplardı. */
+.scr { animation: scr-in 0.16s ease-out; }
+@keyframes scr-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .scr { animation: none; }
+}
