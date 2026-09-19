@@ -19,10 +19,10 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { CalendarIcon, CheckIcon, CloseIcon, GlobeIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { BellIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
 
-type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule";
+type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings";
 type SortMode = "default" | "near" | "name" | "grade";
 
 // Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
@@ -389,8 +389,18 @@ export default function App() {
       // açılır: geri tuşu önce görüntüleyiciyi kapatır, sonra listeye döner.
       if (scr !== "schedule-view" && scheduleViewIdRef.current) setScheduleViewId(null);
       const isOverlay =
-        screenRef.current === "detail" || screenRef.current === "projects" || screenRef.current === "schedule";
-      if (scr !== "detail" && scr !== "projects" && scr !== "schedule" && scr !== "schedule-view" && isOverlay) {
+        screenRef.current === "detail" ||
+        screenRef.current === "projects" ||
+        screenRef.current === "schedule" ||
+        screenRef.current === "settings";
+      if (
+        scr !== "detail" &&
+        scr !== "projects" &&
+        scr !== "schedule" &&
+        scr !== "schedule-view" &&
+        scr !== "settings" &&
+        isOverlay
+      ) {
         setSelectedCourseId(null);
         setScreen("home");
       }
@@ -541,6 +551,32 @@ export default function App() {
     const next: Lang = lang === "tr" ? "en" : "tr";
     setSettings((s) => (s ? { ...s, lang: next } : s));
     await repo.setLang(next);
+  };
+  const setThemeTo = async (next: Theme) => {
+    if (next !== theme) await toggleTheme();
+  };
+  const setLangTo = async (next: Lang) => {
+    if (next !== lang) await toggleLang();
+  };
+
+  // ---- ayarlar -------------------------------------------------------------
+  const openSettings = () => {
+    setScreen("settings");
+    window.history.pushState({ gmtScreen: "settings", tab: homeTabRef.current }, "");
+  };
+  const closeSettings = () => {
+    if (window.history.state?.gmtScreen === "settings") window.history.back();
+    else setScreen("home");
+  };
+  // Bildirim izni. Eskiden bu izni isteyen bir buton hiç yoktu (onBell hiçbir
+  // yere bağlı değildi), bu yüzden hatırlatmalar yalnızca uygulama içi toast
+  // olarak görünüyor, telefona hiç düşmüyordu.
+  const enableNotifications = async () => {
+    if (!notificationsSupported()) return;
+    const perm = await requestNotificationPermission();
+    setNotifPerm(perm);
+    await repo.patchSettings({ notificationsEnabled: perm === "granted" });
+    if (perm === "granted") showToast(t.notifDemoTitle, t.notifEnabledToast);
   };
 
   // ---- course actions -----------------------------------------------------
@@ -903,37 +939,6 @@ export default function App() {
     await reload();
   };
 
-  // ---- notifications ------------------------------------------------------
-  const onBell = async () => {
-    let perm = notifPerm;
-    if (notificationsSupported() && perm !== "granted") {
-      perm = await requestNotificationPermission();
-      setNotifPerm(perm);
-      await repo.patchSettings({ notificationsEnabled: perm === "granted" });
-    }
-    const alerts = await evaluateNotifications(
-      activeVMs.map((v) => ({ ...v })),
-      recordsByCourse,
-      lang
-    );
-    await reload();
-    if (alerts.length) {
-      showToast(t.notifDemoTitle, alerts[0].body);
-    } else {
-      // Give feedback: show the closest-to-limit course, else "all good".
-      const near = [...activeVMs].sort((a, b) => b.ratio - a.ratio)[0];
-      const body =
-        near && near.warn
-          ? lang === "tr"
-            ? `"${near.name}" dersinde ${near.remaining <= 0 ? "0" : near.remaining} saat hakkın kaldı.`
-            : `You have ${near.remaining <= 0 ? 0 : near.remaining} hours left for "${near.name}".`
-          : lang === "tr"
-          ? "Şimdilik yeni bir uyarı yok."
-          : "No new alerts for now.";
-      showToast(t.notifDemoTitle, body);
-    }
-  };
-
   // ---- export -------------------------------------------------------------
   const buildExports = (scope: "course" | "all"): CourseExport[] => {
     if (scope === "course" && selectedCourseId) {
@@ -1040,6 +1045,7 @@ export default function App() {
         {screen === "detail" && renderDetail()}
         {screen === "projects" && renderProjects()}
         {screen === "schedule" && renderSchedule()}
+        {screen === "settings" && renderSettings()}
 
         {toast && (
           <div className="notif-toast" role="status">
@@ -1154,15 +1160,9 @@ export default function App() {
             <div className="fs13 sub">{t.welcome(settings!.userName ?? "")}</div>
           </div>
           <div className="icon-row">
-            <button className="icon-btn" onClick={toggleTheme} aria-label="theme">
-              {theme === "dark" ? <MoonIcon /> : <SunIcon />}
-            </button>
-            <button className="icon-btn lang-btn" onClick={toggleLang} aria-label="language">
-              <GlobeIcon />
-              <span>{lang === "tr" ? "EN" : "TR"}</span>
-            </button>
             <button className="icon-btn" onClick={openSchedule} aria-label="schedule"><CalendarIcon /></button>
             <button className="icon-btn" onClick={openProjects} aria-label="projects"><ProjectsIcon /></button>
+            <button className="icon-btn" onClick={openSettings} aria-label="settings"><SettingsIcon /></button>
           </div>
         </div>
 
@@ -1233,7 +1233,6 @@ export default function App() {
             <div className="fw7 fs16">{t.emptyTitle}</div>
             <div className="fs13 sub">{t.emptyDesc}</div>
             <button className="btn-primary" onClick={openAddCourse}>{t.addCourseBtn}</button>
-            <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
           </div>
         </>
       );
@@ -1320,7 +1319,6 @@ export default function App() {
             <ShareIcon /> {t.exportShare}
           </button>
           <button className="btn-ghost" onClick={() => setSemesterSheet(true)}>{t.newSemester}</button>
-          <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
         </div>
 
         <button className="fab" onClick={openAddCourse} aria-label="add">＋</button>
@@ -1538,6 +1536,80 @@ export default function App() {
             </button>
           )}
           <button className="link-btn" onClick={exitProjectEditMode}>{t.doneEditing}</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSettings() {
+    const supported = notificationsSupported();
+    return (
+      <div className="scr">
+        <div className="top-row">
+          <button className="icon-btn small" onClick={closeSettings}>‹</button>
+          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.settingsTitle}</div>
+          <div style={{ width: 32 }} />
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setAppearance}</div>
+          <div className="seg">
+            <button className={theme === "light" ? "active" : ""} onClick={() => void setThemeTo("light")}>
+              <SunIcon /> {t.themeLight}
+            </button>
+            <button className={theme === "dark" ? "active" : ""} onClick={() => void setThemeTo("dark")}>
+              <MoonIcon /> {t.themeDark}
+            </button>
+          </div>
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setLanguage}</div>
+          <div className="seg">
+            <button className={lang === "tr" ? "active" : ""} onClick={() => void setLangTo("tr")}>Türkçe</button>
+            <button className={lang === "en" ? "active" : ""} onClick={() => void setLangTo("en")}>English</button>
+          </div>
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setNotifications}</div>
+          <div className="set-row">
+            <span className="set-ic"><BellIcon /></span>
+            <div className="set-row-text">
+              <div className="fw7 fs14">{t.notifRowTitle}</div>
+              <div className="fs12 sub">
+                {!supported ? t.notifUnsupported : notifPerm === "denied" ? t.notifDeniedHint : t.notifDesc}
+              </div>
+            </div>
+            {supported && notifPerm === "granted" && <span className="set-on">{t.notifOn}</span>}
+            {supported && notifPerm === "default" && (
+              <button className="set-btn" onClick={() => void enableNotifications()}>{t.enableNotifications}</button>
+            )}
+          </div>
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setAccount}</div>
+          <div className="set-row">
+            <span className="set-ic"><PersonIcon /></span>
+            <div className="set-row-text">
+              <div className="fw7 fs14">{settings!.userName}</div>
+              <div className="fs12 sub">{settings!.isGuest ? t.accountGuest : t.accountGoogle}</div>
+            </div>
+            {settings!.isGuest && (
+              <button className="set-btn" onClick={goCreateAccount}>{t.createAccount}</button>
+            )}
+          </div>
+          <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setAbout}</div>
+          <button className="set-row set-link" onClick={() => setInfoSheet(true)}>
+            <span className="set-ic"><InfoIcon /></span>
+            <div className="set-row-text fw7 fs14">{t.infoTitle}</div>
+            <span className="set-chev">›</span>
+          </button>
         </div>
       </div>
     );

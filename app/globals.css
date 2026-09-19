@@ -1143,3 +1143,73 @@ a {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* ---- Ayarlar ---- */
+.set-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px;
+}
+.set-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sub);
+}
+.set-group .seg button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+}
+.set-group .seg .ico-thm { width: 16px; height: 16px; }
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  color: var(--text);
+}
+.set-link {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font: inherit;
+}
+.set-ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.set-ic svg { width: 18px; height: 18px; }
+.set-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-btn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.set-on {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3fae6a;
+}
+.set-chev { font-size: 22px; color: var(--sub); line-height: 1; }
