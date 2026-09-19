@@ -25,31 +25,28 @@
   --elev: #ffffff;
 }
 
-/* Theme: Dark
-   Açık temanın sıcak (krem/kahve) paletinin koyu karşılığı. Eskiden burada
-   soğuk bir mavi-gri (#212630) ve soluk şeftali bir vurgu rengi (#db8452)
-   vardı; iki tema ayrı uygulamalar gibi duruyordu ve ＋ butonu ayrıca parlak
-   turuncuya boyandığı için aynı ekranda iki farklı turuncu görünüyordu.
-   Şimdi: sıcak nötr kömür tonları + tek, marka turuncusu. */
+/* Theme: Dark — "Arduvaz"
+   Kullanıcıyla birlikte seçildi (canlı karşılaştırmada 4 zemin × 3 karışım
+   denendi): hafif yeşilimsi koyu gri zemin, yumuşak turuncu vurgu.
+   Kural: koyu temada turuncu yalnızca yazı, ikon ve birincil butonda; yüzey ve
+   kenarlıklar nötr (turuncu zemin + turuncu kenarlık + turuncu gölge koyu
+   zeminde "neon/ışıma" etkisi yapıyordu). Bu yüzden accent-soft ve
+   accent-border burada turuncu DEĞİL. İlerleme çubuğu renkleri lib/color.ts. */
 .thm-dark,
 :root[data-theme="dark"] {
-  --bg: #141210;
-  --surface: #201d1a;
-  --elev: #3d3833; /* segment seçili düğmesi gibi "yükseltilmiş" yüzeyler */
-  --text: #f3eee8;
-  --sub: #a89e94;
-  --border: rgba(255, 244, 232, 0.11);
-  --track: #2b2723;
-  /* Koyu zeminde doygun turuncu + turuncu kenarlık + turuncu gölge "neon /
-     glow" etkisi yapıyordu. Kural: koyu temada turuncu yalnızca yazı, ikon ve
-     birincil butonda; yüzeyler ve kenarlıklar nötr. Bu yüzden accent-soft ve
-     accent-border burada turuncu DEĞİL, nötr sıcak gri. */
-  --accent: #eb6a33;
-  --accent-soft: rgba(255, 244, 232, 0.06);
-  --accent-border: rgba(255, 244, 232, 0.12);
-  --warn-mid: #f0a04b;
-  --warn-high: #ef6b5f;
-  --danger: #ef6b5f;
+  --bg: #101514;
+  --surface: #1a201f;
+  --elev: #29312f; /* segment seçili düğmesi gibi "yükseltilmiş" yüzeyler */
+  --text: #e8eeec;
+  --sub: #92a19c;
+  --border: rgba(220, 255, 240, 0.09);
+  --track: #232a28;
+  --accent: #e5834f;
+  --accent-soft: rgba(255, 255, 255, 0.06);
+  --accent-border: rgba(220, 255, 240, 0.09);
+  --warn-mid: #d6ab66;
+  --warn-high: #d17a5f;
+  --danger: #d17a5f;
   --radius-card: 18px;
   --radius-btn: 14px;
   --font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
@@ -1349,8 +1346,11 @@ a {
 /* Koyu temada giriş başlığının üst kısmı krem/beyaza dönüp göz alıyordu;
    aynı turuncu geçiş, sıcak koyu kahveden başlayarak. */
 .thm-dark .login-hero {
-  /* Işıma yok: düz, sıcak koyu zemin; marka rengi logoda. */
-  background: #1b1714;
+  /* Işıma yok: düz koyu zemin; marka rengi logoda. */
+  background: var(--bg);
 }
+/* Takvimde işaretli günler koyu temada paletin kiremit tonunda (sabit parlak
+   kırmızı Arduvaz zeminde sırıtıyordu). */
+.thm-dark .cal-cell.marked { background: var(--warn-high); }
 /* Koyu temada renkli ışıma gölgesi yok — nötr, yumuşak gölge. */
 .thm-dark .fab { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45); }
