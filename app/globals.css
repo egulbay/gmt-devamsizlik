@@ -1249,3 +1249,17 @@ a {
 /* Çubuk varken içerik ve + butonu çubuğun altında kalmasın. */
 .has-nav .scr { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
 .has-nav .fab { bottom: calc(80px + env(safe-area-inset-bottom)); }
+
+/* ---- Ders kartı: "Bugün gelmedim" kısayolu ---- */
+.cc-quick {
+  flex: none;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 5px 10px;
+  line-height: 1.1;
+}
+.cc-quick:active { transform: scale(0.95); }

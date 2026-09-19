@@ -174,6 +174,10 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} proje seçildi`,
     bulkDeleteProjectsTitle: (n: number) => `${n} proje silinsin mi?`,
     bulkDeleteProjectsDesc: "Seçilen projeler ve yapılacaklar listeleri kalıcı olarak silinecek. Emin misiniz?",
+    // hızlı devamsızlık
+    quickAbsent: "+ Bugün",
+    quickAbsentAria: "Bugün gelmedim",
+    quickAbsentSaved: (name: string, h: number) => `"${name}": bugün ${h} saat devamsızlık işlendi.`,
     // alt gezinme
     navCourses: "Derslerim",
     navSchedule: "Program",
@@ -358,6 +362,10 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} project(s) selected`,
     bulkDeleteProjectsTitle: (n: number) => `Delete ${n} project(s)?`,
     bulkDeleteProjectsDesc: "The selected projects and their to-do lists will be permanently deleted. Are you sure?",
+    // quick absence
+    quickAbsent: "+ Today",
+    quickAbsentAria: "I missed class today",
+    quickAbsentSaved: (name: string, h: number) => `"${name}": ${h} hour(s) of absence logged for today.`,
     // bottom nav
     navCourses: "Courses",
     navSchedule: "Schedule",

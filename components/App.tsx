@@ -331,6 +331,12 @@ export default function App() {
     };
   }, [reload]);
 
+  // Ana ekrandan açılan "Bugün gelmedim" penceresi kapanınca seçili dersi
+  // bırak — yoksa "dışa aktar" gibi seçili derse bakan yerler yanılırdı.
+  useEffect(() => {
+    if (!dayPopover && screen === "home" && selectedCourseId) setSelectedCourseId(null);
+  }, [dayPopover, screen, selectedCourseId]);
+
   // ---- geçmiş (history) yönetimi ------------------------------------------
   // Telefonun geri tuşu, uygulamadan çıkmak yerine sırayla şunları geri almalı:
   //   düzenleme modu → detay ekranı → Geçmiş sekmesi → Aktif (taban).
@@ -856,6 +862,23 @@ export default function App() {
     await repo.setRecord(selectedCourseId, dayPopover.date, h, dayPopover.recordId, dayPopover.note);
     setDayPopover(null);
     await reload();
+    if (screen === "home") {
+      const name = activeVMs.find((c) => c.id === selectedCourseId)?.name ?? "";
+      showToast(t.notifDemoTitle, t.quickAbsentSaved(name, h));
+    }
+  };
+  // Ana ekrandan "Bugün gelmedim": ders detayına girmeden bugünün kaydını
+  // aç. Aynı saat/açıklama penceresi kullanılıyor; bugün için kayıt zaten
+  // varsa onu düzenlemeye açar (aynı güne ikinci kayıt oluşmaz).
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const openQuickAbsent = (courseId: string) => {
+    const key = todayKey();
+    const existing = (recordsByCourse[courseId] ?? []).find((r) => r.date === key);
+    setSelectedCourseId(courseId);
+    openDay(key, existing);
   };
   const toggleNote = (recordId: string) => {
     setExpandedNotes((prev) => {
@@ -1309,6 +1332,7 @@ export default function App() {
                 toggleSelected(c.id);
               }}
               onDelete={() => setPendingDeleteId(c.id)}
+              onQuickAbsent={() => openQuickAbsent(c.id)}
               editMode={editMode}
               selected={selected.has(c.id)}
               dark={theme === "dark"}
@@ -2083,6 +2107,8 @@ export default function App() {
         <div className="scrim" onClick={() => setDayPopover(null)} />
         <div className="sheet">
           <div className="sheet-handle" />
+          {/* Ana ekrandan açıldıysa hangi ders olduğu görünmüyor — başlıkta yaz. */}
+          {screen === "home" && selectedVM && <div className="fs13 fw7 sub">{selectedVM.name}</div>}
           <div className="fw8 fs16">{dateLabel}</div>
           <div className="field-label">{t.hoursLabel}</div>
           <div className="stepper">
@@ -2373,11 +2399,14 @@ function CourseCard({
   archived,
   dark,
   t,
+  onQuickAbsent,
 }: {
   c: CourseVM;
   onClick: () => void;
   onLongPress?: () => void;
   onDelete?: () => void;
+  // "Bugün gelmedim" kısayolu — yalnızca aktif dönem kartlarında verilir.
+  onQuickAbsent?: () => void;
   editMode?: boolean;
   selected?: boolean;
   archived?: boolean;
@@ -2401,7 +2430,7 @@ function CourseCard({
   const onPointerDown = (e: React.PointerEvent) => {
     if (!onLongPress || editMode) return;
     // Ignore the × badge's own pointer.
-    if ((e.target as HTMLElement).closest(".cc-del, .cc-check")) return;
+    if ((e.target as HTMLElement).closest(".cc-del, .cc-check, .cc-quick")) return;
     longFired.current = false;
     start.current = { x: e.clientX, y: e.clientY };
     clearTimer();
@@ -2435,6 +2464,8 @@ function CourseCard({
   return (
     <div
       className={`course-card${archived ? " archived" : ""}${editMode ? " jiggling" : ""}${selected ? " selected" : ""}`}
+      // Sınıra yakın derslerde soldan renkli şerit: listede göz ilk onlara gitsin.
+      style={c.warn && !archived ? { boxShadow: `inset 4px 0 0 ${ratioColor(c.ratio, dark)}` } : undefined}
       onClick={handleClick}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -2475,6 +2506,19 @@ function CourseCard({
             bugünküyle birebir aynı kalır. */}
         {c.grade != null && <span className="grade-badge">{t.gradeBadge(c.grade)}</span>}
         {c.warn && <span className={`warn-badge ${c.warnClass}`}>!</span>}
+        {onQuickAbsent && !editMode && (
+          <button
+            className="cc-quick"
+            aria-label={t.quickAbsentAria}
+            onClick={(e) => {
+              e.stopPropagation();
+              haptic(HAPTIC_TICK);
+              onQuickAbsent();
+            }}
+          >
+            {t.quickAbsent}
+          </button>
+        )}
       </div>
       <div className="cc-bar-track">
         <div className="cc-bar-fill" style={{ width: pct + "%", background: ratioColor(c.ratio, dark) }} />
