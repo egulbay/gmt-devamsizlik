@@ -19,7 +19,7 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { BellIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
 
 type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings";
@@ -559,15 +559,41 @@ export default function App() {
     if (next !== lang) await toggleLang();
   };
 
+  // ---- alt gezinme çubuğu --------------------------------------------------
+  // Derslerim / Program / Projeler / Ayarlar. Ana sekme (Derslerim) history'nin
+  // tabanında durur; diğer sekmeler onun üstünde TEK bir kayıt tutar: sekmeden
+  // sekmeye geçerken kayıt itilmez, değiştirilir. Böylece hangi sekmede olursan
+  // ol telefonun geri tuşu önce Derslerim'e döner, ikinci basışta uygulamadan
+  // çıkar — Android'deki alışılmış davranış. Çubuk yalnızca sekme köklerinde
+  // görünür (detay/düzenleme katmanlarında gizli), dolayısıyla üstteki kayıt
+  // her zaman ya taban ya da bir sekme kaydıdır.
+  const TAB_SCREENS = ["projects", "schedule", "settings"] as const;
+  type TabScreen = "home" | (typeof TAB_SCREENS)[number];
+  const goTab = (target: TabScreen) => {
+    if (target === screen) {
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      return;
+    }
+    haptic(HAPTIC_TICK);
+    if (target === "home") {
+      const st = window.history.state?.gmtScreen;
+      if ((TAB_SCREENS as readonly string[]).includes(st)) window.history.back();
+      else setScreen("home");
+      return;
+    }
+    const entry = { gmtScreen: target, tab: homeTabRef.current };
+    if (screen === "home") window.history.pushState(entry, "");
+    else window.history.replaceState(entry, "");
+    if (target === "projects") setSelectedProjectId(null);
+    if (target === "schedule") {
+      setScheduleViewId(null);
+      void loadScheduleImages();
+    }
+    setScreen(target);
+    window.scrollTo(0, 0);
+  };
+
   // ---- ayarlar -------------------------------------------------------------
-  const openSettings = () => {
-    setScreen("settings");
-    window.history.pushState({ gmtScreen: "settings", tab: homeTabRef.current }, "");
-  };
-  const closeSettings = () => {
-    if (window.history.state?.gmtScreen === "settings") window.history.back();
-    else setScreen("home");
-  };
   // Bildirim izni. Eskiden bu izni isteyen bir buton hiç yoktu (onBell hiçbir
   // yere bağlı değildi), bu yüzden hatırlatmalar yalnızca uygulama içi toast
   // olarak görünüyor, telefona hiç düşmüyordu.
@@ -664,19 +690,6 @@ export default function App() {
   };
 
   // ---- projeler (deneysel) -------------------------------------------------
-  const openProjects = () => {
-    setSelectedProjectId(null);
-    setScreen("projects");
-    window.history.pushState({ gmtScreen: "projects", tab: homeTabRef.current }, "");
-  };
-  const closeProjects = () => {
-    if (window.history.state?.gmtScreen === "projects") {
-      window.history.back();
-    } else {
-      setScreen("home");
-      setSelectedProjectId(null);
-    }
-  };
   // Bir projenin detayını aç/kapat — kendi history kaydı ("project-detail")
   // ile. Bu kayıt olmadan geri tuşu doğrudan "projects" kaydına (yani ana
   // ekrana, çünkü detay ekranı listeyle aynı "projects" ekranı state'ini
@@ -711,20 +724,6 @@ export default function App() {
     }
   }, [screen]);
 
-  const openSchedule = () => {
-    setScheduleViewId(null);
-    setScreen("schedule");
-    window.history.pushState({ gmtScreen: "schedule", tab: homeTabRef.current }, "");
-    void loadScheduleImages();
-  };
-  const closeSchedule = () => {
-    if (window.history.state?.gmtScreen === "schedule") {
-      window.history.back();
-    } else {
-      setScreen("home");
-      setScheduleViewId(null);
-    }
-  };
   const openScheduleViewer = (id: string) => {
     setScheduleViewId(id);
     window.history.pushState({ gmtScreen: "schedule-view", tab: homeTabRef.current }, "");
@@ -1035,10 +1034,18 @@ export default function App() {
     );
   }
 
+  // Alt çubuk yalnızca sekme köklerinde: ders/proje detayında ve uzun-basma
+  // düzenleme modlarında gizlenir (oralarda kendi geri/bitti kontrolleri var).
+  const showNav =
+    (screen === "home" || screen === "projects" || screen === "schedule" || screen === "settings") &&
+    !editMode &&
+    !projectEditMode &&
+    !(screen === "projects" && selectedProjectId);
+
   // ======================= RENDER ==========================================
   return (
     <div className={`app-root thm-${theme}`} data-theme={theme}>
-      <div className={`app-shell thm-${theme}`}>
+      <div className={`app-shell thm-${theme}${showNav ? " has-nav" : ""}`}>
         {screen === "login" && renderLogin()}
         {screen === "guestName" && renderGuestName()}
         {screen === "home" && renderHome()}
@@ -1057,6 +1064,7 @@ export default function App() {
           </div>
         )}
 
+        {showNav && renderTabBar()}
         {renderSheets()}
       </div>
     </div>
@@ -1158,11 +1166,6 @@ export default function App() {
           <div>
             <div className="fs22 fw8">{t.myCourses}</div>
             <div className="fs13 sub">{t.welcome(settings!.userName ?? "")}</div>
-          </div>
-          <div className="icon-row">
-            <button className="icon-btn" onClick={openSchedule} aria-label="schedule"><CalendarIcon /></button>
-            <button className="icon-btn" onClick={openProjects} aria-label="projects"><ProjectsIcon /></button>
-            <button className="icon-btn" onClick={openSettings} aria-label="settings"><SettingsIcon /></button>
           </div>
         </div>
 
@@ -1541,14 +1544,36 @@ export default function App() {
     );
   }
 
+  function renderTabBar() {
+    const tabs: { key: "home" | "schedule" | "projects" | "settings"; label: string; icon: React.ReactNode }[] = [
+      { key: "home", label: t.navCourses, icon: <BookIcon /> },
+      { key: "schedule", label: t.navSchedule, icon: <CalendarIcon /> },
+      { key: "projects", label: t.navProjects, icon: <ProjectsIcon /> },
+      { key: "settings", label: t.navSettings, icon: <SettingsIcon /> },
+    ];
+    return (
+      <nav className="tab-bar" aria-label="navigation">
+        {tabs.map((tb) => (
+          <button
+            key={tb.key}
+            className={`tab-btn${screen === tb.key ? " on" : ""}`}
+            aria-current={screen === tb.key ? "page" : undefined}
+            onClick={() => goTab(tb.key)}
+          >
+            {tb.icon}
+            <span>{tb.label}</span>
+          </button>
+        ))}
+      </nav>
+    );
+  }
+
   function renderSettings() {
     const supported = notificationsSupported();
     return (
       <div className="scr">
         <div className="top-row">
-          <button className="icon-btn small" onClick={closeSettings}>‹</button>
-          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.settingsTitle}</div>
-          <div style={{ width: 32 }} />
+          <div className="fs22 fw8">{t.settingsTitle}</div>
         </div>
 
         <div className="set-group">
@@ -1621,9 +1646,7 @@ export default function App() {
     return (
       <div className="scr">
         <div className="top-row">
-          <button className="icon-btn small" onClick={closeSchedule}>‹</button>
-          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.scheduleTitle}</div>
-          <div style={{ width: 32 }} />
+          <div className="fs22 fw8">{t.scheduleTitle}</div>
         </div>
 
         {/* accept="image/*": telefonda hem kamera hem galeri seçeneği çıkar. */}
@@ -1699,9 +1722,7 @@ export default function App() {
     return (
       <div className="scr">
         <div className="top-row">
-          <button className="icon-btn small" onClick={closeProjects}>‹</button>
-          <div className="fw8 fs16" style={{ flex: 1, textAlign: "center" }}>{t.projectsTitle}</div>
-          <div style={{ width: 32 }} />
+          <div className="fs22 fw8">{t.projectsTitle}</div>
         </div>
 
         {projects.length === 0 ? (

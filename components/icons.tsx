@@ -35,6 +35,15 @@ export function ProjectsIcon() {
   );
 }
 
+export function BookIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 5.2A2.2 2.2 0 0 1 6.7 3h12.8v15.4H6.7a2.2 2.2 0 0 0-2.2 2.2V5.2Z" />
+      <path d="M4.5 20.6A2.2 2.2 0 0 0 6.7 22.8h12.8v-4.4M8.5 7.8h7" />
+    </svg>
+  );
+}
+
 export function SettingsIcon() {
   return (
     <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">

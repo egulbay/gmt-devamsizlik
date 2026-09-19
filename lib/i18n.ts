@@ -174,6 +174,11 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} proje seçildi`,
     bulkDeleteProjectsTitle: (n: number) => `${n} proje silinsin mi?`,
     bulkDeleteProjectsDesc: "Seçilen projeler ve yapılacaklar listeleri kalıcı olarak silinecek. Emin misiniz?",
+    // alt gezinme
+    navCourses: "Derslerim",
+    navSchedule: "Program",
+    navProjects: "Projeler",
+    navSettings: "Ayarlar",
     // ayarlar
     settingsTitle: "Ayarlar",
     setAppearance: "Görünüm",
@@ -353,6 +358,11 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} project(s) selected`,
     bulkDeleteProjectsTitle: (n: number) => `Delete ${n} project(s)?`,
     bulkDeleteProjectsDesc: "The selected projects and their to-do lists will be permanently deleted. Are you sure?",
+    // bottom nav
+    navCourses: "Courses",
+    navSchedule: "Schedule",
+    navProjects: "Projects",
+    navSettings: "Settings",
     // settings
     settingsTitle: "Settings",
     setAppearance: "Appearance",
