@@ -4,11 +4,11 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tf, MONTHS } from "@/lib/i18n";
 import { ratioColor } from "@/lib/color";
-import type { AbsenceRecord, Course, Lang, Project, ProjectTodo, Semester, Settings, SyncState, Theme } from "@/lib/types";
+import type { AbsenceRecord, Course, Lang, Project, ProjectTodo, Semester, Settings, Theme } from "@/lib/types";
 import * as repo from "@/lib/db/repo";
 import { haptic, HAPTIC_PRESS, HAPTIC_TICK } from "@/lib/haptics";
 import { isCloudEnabled, supabase } from "@/lib/sync/supabaseClient";
-import { initSync, onSyncState, flushSyncQueue, pullRemote } from "@/lib/sync/syncEngine";
+import { initSync, flushSyncQueue, pullRemote } from "@/lib/sync/syncEngine";
 import {
   registerServiceWorker,
   requestNotificationPermission,
@@ -163,7 +163,6 @@ export default function App() {
 
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [syncState, setSyncState] = useState<SyncState>("synced");
   const [notifPerm, setNotifPerm] = useState<NotificationPermission>("default");
 
   const lang: Lang = settings?.lang ?? "tr";
@@ -311,7 +310,6 @@ export default function App() {
       }
 
       initSync();
-      onSyncState((st) => setSyncState(st));
     })();
     return () => {
       cancelled = true;
@@ -1144,22 +1142,6 @@ export default function App() {
     );
   }
 
-  function SyncPill() {
-    const map: Record<SyncState, { cls: string; label: string }> = {
-      synced: { cls: "synced", label: t.syncSynced },
-      pending: { cls: "pending", label: t.syncPending },
-      syncing: { cls: "syncing", label: t.syncSyncing },
-      offline: { cls: "offline", label: t.syncOffline },
-    };
-    const it = map[syncState];
-    return (
-      <span className="sync-pill">
-        <span className={`sync-dot ${it.cls}`} />
-        {it.label}
-      </span>
-    );
-  }
-
   function renderHome() {
     // İlk ders eklendiği andan itibaren arama + sıralama görünür. Sıfır derste
     // gizli kalır: o ekranın sahibi boş durum kartı.
@@ -1184,15 +1166,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* status row */}
-        {settings!.isGuest ? (
+        {/* Misafir uyarısı. Hesapla girenlerde eskiden burada bir senkron
+            durumu satırı vardı; her açılışta "Senkronize ediliyor" yazıp
+            ekranın orantısını bozduğu için kaldırıldı — senkronizasyon arka
+            planda sessizce çalışmaya devam ediyor. */}
+        {settings!.isGuest && (
           <div className="guest-banner">
             <span>{t.guestBanner}</span>
             <button className="link-btn" onClick={goCreateAccount}>{t.createAccount}</button>
-          </div>
-        ) : (
-          <div className="row between">
-            <SyncPill />
           </div>
         )}
 

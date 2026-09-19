@@ -132,11 +132,6 @@ export const TXT = {
     exportCourse: "Bu dersi dışa aktar",
     exportAll: "Tüm dersleri dışa aktar",
     summaryTitle: "Devamsızlık Özeti",
-    // sync
-    syncSynced: "Senkronize edildi",
-    syncPending: "Bekliyor",
-    syncSyncing: "Senkronize ediliyor",
-    syncOffline: "Çevrimdışı",
     // summary card
     summaryNear: (n: number) => `${n} dersin sınıra yakın`,
     welcome: (name: string) => `Hoş geldin, ${name}`,
@@ -301,10 +296,6 @@ export const TXT = {
     exportCourse: "Export this course",
     exportAll: "Export all courses",
     summaryTitle: "Attendance Summary",
-    syncSynced: "Synced",
-    syncPending: "Pending",
-    syncSyncing: "Syncing",
-    syncOffline: "Offline",
     summaryNear: (n: number) => `${n} course(s) near the limit`,
     welcome: (name: string) => `Welcome, ${name}`,
     infoTitle: "What is GMT Attendance Tracker?",
