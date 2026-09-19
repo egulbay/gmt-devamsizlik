@@ -1288,3 +1288,24 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .sk { animation: none; }
 }
+
+/* ---- Çevrimdışı şeridi ----
+   Üstteki boşluğun (.scr padding-top: 28px) içine sığacak kadar ince ve
+   sabit konumlu: göründüğünde içeriği aşağı itmez, ekran zıplamaz. */
+.offline-strip {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 440px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 95;
+}

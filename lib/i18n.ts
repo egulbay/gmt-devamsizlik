@@ -174,6 +174,7 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} proje seçildi`,
     bulkDeleteProjectsTitle: (n: number) => `${n} proje silinsin mi?`,
     bulkDeleteProjectsDesc: "Seçilen projeler ve yapılacaklar listeleri kalıcı olarak silinecek. Emin misiniz?",
+    offlineNotice: "Çevrimdışısın · değişiklikler bağlanınca yedeklenecek",
     // hızlı devamsızlık
     quickAbsent: "+ Bugün",
     quickAbsentAria: "Bugün gelmedim",
@@ -362,6 +363,7 @@ export const TXT = {
     selectedProjectsCount: (n: number) => `${n} project(s) selected`,
     bulkDeleteProjectsTitle: (n: number) => `Delete ${n} project(s)?`,
     bulkDeleteProjectsDesc: "The selected projects and their to-do lists will be permanently deleted. Are you sure?",
+    offlineNotice: "You're offline · changes will sync when you reconnect",
     // quick absence
     quickAbsent: "+ Today",
     quickAbsentAria: "I missed class today",

@@ -331,6 +331,21 @@ export default function App() {
     };
   }, [reload]);
 
+  // Çevrimdışı durumu. Eski "Senkronize ediliyor" satırının yerine: yalnızca
+  // internet YOKKEN ve hesapla girilmişken ince bir şerit gösteriyoruz (misafir
+  // verisi zaten hiç buluta gitmediği için ona bir şey ifade etmez).
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
   // Ana ekrandan açılan "Bugün gelmedim" penceresi kapanınca seçili dersi
   // bırak — yoksa "dışa aktar" gibi seçili derse bakan yerler yanılırdı.
   useEffect(() => {
@@ -1116,6 +1131,9 @@ export default function App() {
           </div>
         )}
 
+        {!online && !settings.isGuest && screen !== "login" && screen !== "guestName" && (
+          <div className="offline-strip" role="status">{t.offlineNotice}</div>
+        )}
         {showNav && renderTabBar()}
         {renderSheets()}
       </div>
