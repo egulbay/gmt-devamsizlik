@@ -19,7 +19,7 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
 
 type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings";
@@ -1415,7 +1415,7 @@ export default function App() {
           <button className="btn-ghost" onClick={() => setSemesterSheet(true)}>{t.newSemester}</button>
         </div>
 
-        <button className="fab" onClick={openAddCourse} aria-label="add">＋</button>
+        <button className="fab" onClick={openAddCourse} aria-label="add"><PlusIcon /></button>
       </>
     );
   }
@@ -1891,7 +1891,7 @@ export default function App() {
         )}
 
         {projects.length > 0 && !projectEditMode && (
-          <button className="fab" onClick={openAddProject} aria-label="add-project">＋</button>
+          <button className="fab" onClick={openAddProject} aria-label="add-project"><PlusIcon /></button>
         )}
       </div>
     );

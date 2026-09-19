@@ -35,6 +35,16 @@ export function ProjectsIcon() {
   );
 }
 
+// ＋ karakteri yazı tipine göre kutunun içinde hafif kaymış çiziliyor (glifin
+// kendi boşlukları yüzünden); çizili ikon ise viewBox'ın tam ortasında durur.
+export function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={26} height={26} fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
 export function BookIcon() {
   return (
     <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
