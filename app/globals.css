@@ -40,9 +40,13 @@
   --sub: #a89e94;
   --border: rgba(255, 244, 232, 0.11);
   --track: #2b2723;
-  --accent: #ff6b2c;
-  --accent-soft: rgba(255, 107, 44, 0.15);
-  --accent-border: rgba(255, 107, 44, 0.42);
+  /* Koyu zeminde doygun turuncu + turuncu kenarlık + turuncu gölge "neon /
+     glow" etkisi yapıyordu. Kural: koyu temada turuncu yalnızca yazı, ikon ve
+     birincil butonda; yüzeyler ve kenarlıklar nötr. Bu yüzden accent-soft ve
+     accent-border burada turuncu DEĞİL, nötr sıcak gri. */
+  --accent: #eb6a33;
+  --accent-soft: rgba(255, 244, 232, 0.06);
+  --accent-border: rgba(255, 244, 232, 0.12);
   --warn-mid: #f0a04b;
   --warn-high: #ef6b5f;
   --danger: #ef6b5f;
@@ -1345,5 +1349,8 @@ a {
 /* Koyu temada giriş başlığının üst kısmı krem/beyaza dönüp göz alıyordu;
    aynı turuncu geçiş, sıcak koyu kahveden başlayarak. */
 .thm-dark .login-hero {
-  background: radial-gradient(130% 110% at 30% 0%, #4a2a1a 0%, #8a3a1a 38%, #e8541f 78%, #c9411c 100%);
+  /* Işıma yok: düz, sıcak koyu zemin; marka rengi logoda. */
+  background: #1b1714;
 }
+/* Koyu temada renkli ışıma gölgesi yok — nötr, yumuşak gölge. */
+.thm-dark .fab { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45); }
