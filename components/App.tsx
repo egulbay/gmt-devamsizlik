@@ -19,7 +19,7 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SheetIcon, SunIcon, TrashIcon } from "./icons";
+import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SheetIcon, ImageIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
 import SheetViewer from "./SheetViewer";
 
@@ -98,6 +98,9 @@ export default function App() {
   const [pendingDeleteScheduleId, setPendingDeleteScheduleId] = useState<string | null>(null);
   const scheduleFileRef = useRef<HTMLInputElement>(null);
   const scheduleSheetRef = useRef<HTMLInputElement>(null);
+  // "Ders Programı Ekle" → fotoğraf mı, Excel mi? Seçim alttan açılan
+  // pencerede yapılır; ekranda tek buton durur.
+  const [scheduleAddOpen, setScheduleAddOpen] = useState(false);
 
   // Projeler (deneysel) — aktif dönemin proje listesi.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -1812,11 +1815,8 @@ export default function App() {
             <div className="sch-empty-ic"><CalendarIcon /></div>
             <div className="fw7 fs16">{t.noScheduleTitle}</div>
             <div className="fs13 sub">{t.noScheduleDesc}</div>
-            <button className="btn-primary" onClick={pick} disabled={scheduleBusy}>
-              {scheduleBusy ? t.scheduleSaving : t.addSchedulePhoto}
-            </button>
-            <button className="btn-ghost" onClick={pickSheet} disabled={scheduleBusy}>
-              {t.addScheduleSheet}
+            <button className="btn-primary" onClick={() => setScheduleAddOpen(true)} disabled={scheduleBusy}>
+              {scheduleBusy ? t.scheduleSaving : t.addScheduleFile}
             </button>
             <div className="fs12 sub">{t.scheduleLocalHint}</div>
           </div>
@@ -1854,14 +1854,9 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <div className="sch-add-row">
-              <button className="btn-ghost" onClick={pick} disabled={scheduleBusy}>
-                {scheduleBusy ? t.scheduleSaving : t.addAnotherSchedulePhoto}
-              </button>
-              <button className="btn-ghost" onClick={pickSheet} disabled={scheduleBusy}>
-                {t.addScheduleSheet}
-              </button>
-            </div>
+            <button className="btn-ghost" onClick={() => setScheduleAddOpen(true)} disabled={scheduleBusy}>
+              {scheduleBusy ? t.scheduleSaving : `+ ${t.addScheduleFile}`}
+            </button>
             <div className="fs12 sub" style={{ textAlign: "center" }}>{t.scheduleLocalHint}</div>
           </>
         )}
@@ -1882,6 +1877,46 @@ export default function App() {
         )}
         {viewing && viewing.kind === "image" && viewing.url && (
           <ScheduleViewer src={viewing.url} hint={t.scheduleZoomHint} onClose={closeScheduleViewer} />
+        )}
+        {scheduleAddOpen && (
+          <>
+            <div className="scrim" onClick={() => setScheduleAddOpen(false)} />
+            <div className="sheet">
+              <div className="sheet-handle" />
+              <div className="fw8 fs16">{t.addScheduleChooserTitle}</div>
+              {/* Pencereyi kapatıp dosya seçiciyi AYNI dokunuşta açıyoruz:
+                  input.click() kullanıcı hareketi bağlamında çalışmalı. */}
+              <button
+                className="set-row set-link chooser-row"
+                onClick={() => {
+                  setScheduleAddOpen(false);
+                  pick();
+                }}
+              >
+                <span className="set-ic"><ImageIcon /></span>
+                <span className="set-row-text">
+                  <span className="fw7 fs14">{t.chooserPhoto}</span>
+                  <span className="fs12 sub">{t.chooserPhotoDesc}</span>
+                </span>
+                <span className="set-chev">›</span>
+              </button>
+              <button
+                className="set-row set-link chooser-row"
+                onClick={() => {
+                  setScheduleAddOpen(false);
+                  pickSheet();
+                }}
+              >
+                <span className="set-ic"><SheetIcon /></span>
+                <span className="set-row-text">
+                  <span className="fw7 fs14">{t.chooserSheet}</span>
+                  <span className="fs12 sub">{t.chooserSheetDesc}</span>
+                </span>
+                <span className="set-chev">›</span>
+              </button>
+              <button className="btn-secondary" onClick={() => setScheduleAddOpen(false)}>{t.cancel}</button>
+            </div>
+          </>
         )}
         {pendingDeleteScheduleId && (
           <ConfirmSheet

@@ -72,6 +72,16 @@ export function BellIcon() {
   );
 }
 
+export function ImageIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.4" y="4.6" width="17.2" height="14.8" rx="2.6" />
+      <circle cx="9" cy="10" r="1.7" />
+      <path d="M3.9 17.2l4.5-4.2a2 2 0 0 1 2.7 0l3 2.8m0 0 1.7-1.6a2 2 0 0 1 2.7 0l1.6 1.5m-6-.1 2.3 2.2" />
+    </svg>
+  );
+}
+
 export function SheetIcon() {
   return (
     <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">

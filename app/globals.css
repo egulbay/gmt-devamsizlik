@@ -1436,3 +1436,6 @@ a {
 .shv-msg { padding: 24px 8px; color: var(--sub); font-size: 13px; text-align: center; }
 .shv-truncated { padding-top: 12px; }
 .shv-share-fallback { margin: 14px auto 0; max-width: 260px; }
+
+/* Ders programı ekleme seçimi (fotoğraf / Excel) */
+.chooser-row { padding: 10px 0; }
