@@ -1251,9 +1251,67 @@ a {
 .tab-btn .ico-thm { width: 22px; height: 22px; }
 .tab-btn.on { color: var(--accent); }
 .tab-btn.on .ico-thm { stroke-width: 2; }
+
+/* Simge kendi dairesinin içinde durur. Seçilince daire dolar ve yukarı
+   yaylanır; basıldığı an hafifçe içeri çöker. Yay hissi için "geri dönüşlü"
+   (overshoot) eğri kullanılıyor. */
+.tab-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+.tab-lbl { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tab-btn:active .tab-ic { transform: scale(0.9); }
+.tab-btn.on .tab-ic {
+  background: var(--accent-soft);
+  transform: translateY(-7px);
+  animation: tab-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tab-btn.on .tab-lbl { transform: translateY(-4px); }
+@keyframes tab-pop {
+  0% { transform: translateY(0) scale(0.85); }
+  55% { transform: translateY(-11px) scale(1.06); }
+  100% { transform: translateY(-7px) scale(1); }
+}
+
+/* Ortadaki GMT logosu: çubuktan yukarı taşan yuvarlak. Şimdilik işlevsiz. */
+.tab-center {
+  flex: 0 0 66px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+.tab-center img {
+  width: 56px;
+  height: 56px;
+  margin-top: -22px;
+  padding: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-ic, .tab-lbl { transition: none; }
+  .tab-btn.on .tab-ic { animation: none; }
+}
 /* Çubuk varken içerik ve + butonu çubuğun altında kalmasın. */
 .has-nav .scr { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-.has-nav .fab { bottom: calc(80px + env(safe-area-inset-bottom)); }
+/* Alt çubukta artık ortada logo var; ＋ butonu ortada kalsaydı onun üstüne
+   binerdi — sağ alta alındı (çubuğun üstünde, kabuk genişliğine göre). */
+.has-nav .fab {
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  left: auto;
+  right: max(18px, calc(50% - 202px));
+  transform: none;
+}
 
 /* ---- Açılış iskeleti ---- */
 .sk {

@@ -1700,19 +1700,29 @@ export default function App() {
       { key: "projects", label: t.navProjects, icon: <ProjectsIcon /> },
       { key: "settings", label: t.navSettings, icon: <SettingsIcon /> },
     ];
+    const tabBtn = (tb: (typeof tabs)[number]) => (
+      <button
+        key={tb.key}
+        className={`tab-btn${screen === tb.key ? " on" : ""}`}
+        aria-current={screen === tb.key ? "page" : undefined}
+        onClick={() => goTab(tb.key)}
+      >
+        {/* Simge kendi dairesinin içinde: seçilince daire dolar ve yukarı
+            yaylanır (aşağıdaki .tab-ic / tab-pop). */}
+        <span className="tab-ic">{tb.icon}</span>
+        <span className="tab-lbl">{tb.label}</span>
+      </button>
+    );
     return (
       <nav className="tab-bar" aria-label="navigation">
-        {tabs.map((tb) => (
-          <button
-            key={tb.key}
-            className={`tab-btn${screen === tb.key ? " on" : ""}`}
-            aria-current={screen === tb.key ? "page" : undefined}
-            onClick={() => goTab(tb.key)}
-          >
-            {tb.icon}
-            <span>{tb.label}</span>
-          </button>
-        ))}
+        {tabs.slice(0, 2).map(tabBtn)}
+        {/* Ortadaki logo şimdilik yalnızca görsel: bir işlevi yok, bu yüzden
+            buton değil (basılabilir görünüp hiçbir şey yapmasın istemiyoruz). */}
+        <div className="tab-center" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/gmt-logo-nav.png" alt="" />
+        </div>
+        {tabs.slice(2).map(tabBtn)}
       </nav>
     );
   }
@@ -1723,6 +1733,34 @@ export default function App() {
       <div className="scr">
         <div className="top-row">
           <div className="fs22 fw8">{t.settingsTitle}</div>
+        </div>
+
+        <div className="set-group">
+          <div className="set-title">{t.setAccount}</div>
+          <div className="set-row">
+            {/* Fotoğraf Google'ın sunucusundan geliyor: çevrimdışıyken ya da
+                bağlantı kopukken yüklenemez — o durumda kişi simgesine döner. */}
+            {!settings!.isGuest && settings!.avatarUrl && !avatarFailed ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="set-avatar"
+                src={settings!.avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              <span className="set-ic"><PersonIcon /></span>
+            )}
+            <div className="set-row-text">
+              <div className="fw7 fs14">{settings!.userName}</div>
+              <div className="fs12 sub">{settings!.isGuest ? t.accountGuest : t.accountGoogle}</div>
+            </div>
+            {settings!.isGuest && (
+              <button className="set-btn" onClick={goCreateAccount}>{t.createAccount}</button>
+            )}
+          </div>
+          <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
         </div>
 
         <div className="set-group">
@@ -1760,34 +1798,6 @@ export default function App() {
               <button className="set-btn" onClick={() => void enableNotifications()}>{t.enableNotifications}</button>
             )}
           </div>
-        </div>
-
-        <div className="set-group">
-          <div className="set-title">{t.setAccount}</div>
-          <div className="set-row">
-            {/* Fotoğraf Google'ın sunucusundan geliyor: çevrimdışıyken ya da
-                bağlantı kopukken yüklenemez — o durumda kişi simgesine döner. */}
-            {!settings!.isGuest && settings!.avatarUrl && !avatarFailed ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="set-avatar"
-                src={settings!.avatarUrl}
-                alt=""
-                referrerPolicy="no-referrer"
-                onError={() => setAvatarFailed(true)}
-              />
-            ) : (
-              <span className="set-ic"><PersonIcon /></span>
-            )}
-            <div className="set-row-text">
-              <div className="fw7 fs14">{settings!.userName}</div>
-              <div className="fs12 sub">{settings!.isGuest ? t.accountGuest : t.accountGoogle}</div>
-            </div>
-            {settings!.isGuest && (
-              <button className="set-btn" onClick={goCreateAccount}>{t.createAccount}</button>
-            )}
-          </div>
-          <button className="btn-reset" onClick={() => setResetConfirm(true)}>{t.resetProfile}</button>
         </div>
 
         <div className="set-group">
