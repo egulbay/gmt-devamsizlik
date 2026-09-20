@@ -85,10 +85,18 @@ export interface ScheduleFile {
   kind?: "image" | "sheet";
   /** Yalnızca tablolarda: kullanıcıya gösterilecek dosya adı. */
   name?: string;
+  /** Silinmiş kayıtlarda boş Blob tutulur (yer kaplamasın diye). */
   blob: Blob;
   width: number;
   height: number;
   createdAt: number;
+  // --- bulut senkronizasyonu ---
+  updatedAt?: number;
+  clientId?: string;
+  /** Silme diğer cihazlara da gitsin diye önce iz bırakılır, sonra temizlenir. */
+  deleted?: boolean;
+  /** Dosya (ve bilgisi) buluta yüklendi mi. */
+  synced?: boolean;
 }
 
 export interface Settings {

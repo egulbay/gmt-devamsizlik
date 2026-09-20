@@ -677,13 +677,41 @@ async function compressImage(file: Blob): Promise<{ blob: Blob; width: number; h
 export async function listScheduleFiles(): Promise<ScheduleFile[]> {
   const rows = await db().scheduleImages.orderBy("createdAt").toArray();
   // Excel desteğinden önce eklenmiş kayıtlarda `kind` yok; onlar fotoğraf.
-  return rows.map((r) => ({ ...r, kind: r.kind ?? "image" }));
+  return rows.filter((r) => !r.deleted).map((r) => ({ ...r, kind: r.kind ?? "image" }));
+}
+
+// --- bulut senkronizasyonu için yardımcılar (syncEngine kullanır) ---
+export async function listScheduleFilesRaw(): Promise<ScheduleFile[]> {
+  return db().scheduleImages.toArray();
+}
+export async function markScheduleSynced(id: string): Promise<void> {
+  const cur = await db().scheduleImages.get(id);
+  if (cur) await db().scheduleImages.put({ ...cur, synced: true });
+}
+export async function purgeScheduleFile(id: string): Promise<void> {
+  await db().scheduleImages.delete(id);
+}
+export async function putScheduleFileFromCloud(row: ScheduleFile): Promise<void> {
+  await db().scheduleImages.put(row);
 }
 
 export async function addScheduleImage(file: Blob): Promise<ScheduleFile> {
   const { blob, width, height } = await compressImage(file);
-  const img: ScheduleFile = { id: newId("sch"), kind: "image", blob, width, height, createdAt: Date.now() };
+  const now = Date.now();
+  const img: ScheduleFile = {
+    id: newId("sch"),
+    kind: "image",
+    blob,
+    width,
+    height,
+    createdAt: now,
+    updatedAt: now,
+    clientId: await getClientId(),
+    deleted: false,
+    synced: false,
+  };
   await db().scheduleImages.put(img);
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("gmt-enqueue"));
   return img;
 }
 
@@ -693,6 +721,7 @@ export const SCHEDULE_SHEET_MAX_BYTES = 10 * 1024 * 1024;
 
 export async function addScheduleSheet(file: File): Promise<ScheduleFile> {
   if (file.size > SCHEDULE_SHEET_MAX_BYTES) throw new Error("too-large");
+  const now = Date.now();
   const row: ScheduleFile = {
     id: newId("sch"),
     kind: "sheet",
@@ -700,12 +729,36 @@ export async function addScheduleSheet(file: File): Promise<ScheduleFile> {
     blob: file,
     width: 0,
     height: 0,
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    clientId: await getClientId(),
+    deleted: false,
+    synced: false,
   };
   await db().scheduleImages.put(row);
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("gmt-enqueue"));
   return row;
 }
 
+// Silme: kayıt hemen yok edilmez, "silindi" izi bırakılır ki senkronizasyon
+// bunu diğer cihazlara da taşıyabilsin. Dosyanın kendisi (blob) hemen boşaltılır,
+// yer kaplamasın. İz, buluta bildirildikten sonra syncEngine tarafından silinir.
 export async function deleteScheduleFile(id: string): Promise<void> {
-  await db().scheduleImages.delete(id);
+  const cur = await db().scheduleImages.get(id);
+  if (!cur) return;
+  // Misafirde senkronizasyon hiç çalışmaz; iz bıraksaydık sonsuza dek birikirdi.
+  const s = await getSettings();
+  if (s.isGuest || !s.userId) {
+    await db().scheduleImages.delete(id);
+    return;
+  }
+  await db().scheduleImages.put({
+    ...cur,
+    blob: new Blob([]),
+    deleted: true,
+    synced: false,
+    updatedAt: Date.now(),
+    clientId: await getClientId(),
+  });
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("gmt-enqueue"));
 }

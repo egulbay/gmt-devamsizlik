@@ -338,13 +338,6 @@ export default function App() {
   // reload → ensureActiveSemester can itself enqueue — listening to enqueue
   // here created a reload→enqueue→reload feedback loop that livelocked the
   // tab when many queue writes happened in a burst (e.g. the semester repair).
-  useEffect(() => {
-    const handler = () => void reload();
-    window.addEventListener("gmt-data-changed", handler);
-    return () => {
-      window.removeEventListener("gmt-data-changed", handler);
-    };
-  }, [reload]);
 
   // Çevrimdışı durumu. Eski "Senkronize ediliyor" satırının yerine: yalnızca
   // internet YOKKEN ve hesapla girilmişken ince bir şerit gösteriyoruz (misafir
@@ -772,6 +765,18 @@ export default function App() {
       }));
     });
   }, []);
+  useEffect(() => {
+    const handler = () => {
+      void reload();
+      // Buluttan ders programı dosyası indiyse ve o ekran açıksa listeyi tazele.
+      if (screenRef.current === "schedule") void loadScheduleImages();
+    };
+    window.addEventListener("gmt-data-changed", handler);
+    return () => {
+      window.removeEventListener("gmt-data-changed", handler);
+    };
+  }, [reload, loadScheduleImages]);
+
   // Ekran kapanınca blob URL'lerini bırak — büyük fotoğraflar belleği tutmasın.
   useEffect(() => {
     if (screen !== "schedule") {

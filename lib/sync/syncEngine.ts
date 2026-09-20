@@ -1,7 +1,13 @@
 import { db } from "../db/dexie";
-import { getSettings } from "../db/repo";
+import {
+  getSettings,
+  listScheduleFilesRaw,
+  markScheduleSynced,
+  purgeScheduleFile,
+  putScheduleFileFromCloud,
+} from "../db/repo";
 import { supabase, isCloudEnabled } from "./supabaseClient";
-import type { SyncState, Course, AbsenceRecord, Semester, Project } from "../types";
+import type { SyncState, Course, AbsenceRecord, Semester, Project, ScheduleFile } from "../types";
 
 // Maps our local tables to Supabase table names.
 const TABLE_MAP = {
@@ -210,6 +216,132 @@ export async function flushSyncQueue(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Ders programı dosyaları (fotoğraf / Excel)
+//
+// Satır verisinden farklılar: dosyanın kendisi Supabase Storage'da
+// ("schedules" bucket'ı, schedules/<kullanıcı>/<dosya-id> yolunda), adı ve
+// silinme durumu ise public.schedule_files tablosunda durur. Bu yüzden normal
+// yazma kuyruğunu kullanmıyorlar; aşağıdaki akış kendi içinde yürüyor.
+//
+// Kurallar:
+//   - Yükleme başarısız olursa yerel kayda DOKUNULMAZ (veri kaybı olmasın),
+//     bir sonraki denemede tekrar denenir.
+//   - Silme önce buluta bildirilir, ancak ondan sonra yerel iz temizlenir.
+//   - Tablo/bucket yoksa (migration 003 çalıştırılmamış) sessizce atlanır.
+let scheduleBackendMissing = false;
+
+const storagePath = (userId: string, id: string) => `${userId}/${id}`;
+
+export async function syncScheduleFiles(): Promise<void> {
+  if (!isCloudEnabled() || scheduleBackendMissing) return;
+  const client = supabase();
+  if (!client) return;
+  const settings = await getSettings();
+  if (settings.isGuest || !settings.userId || !online()) return;
+  const userId = settings.userId;
+
+  try {
+    const local = await listScheduleFilesRaw();
+
+    // 1) Silinenleri buluta bildir, sonra yerel izi temizle.
+    for (const f of local.filter((x) => x.deleted && !x.synced)) {
+      const { error } = await client
+        .from("schedule_files")
+        .upsert(
+          {
+            id: f.id,
+            user_id: userId,
+            kind: f.kind ?? "image",
+            name: f.name ?? null,
+            width: f.width ?? 0,
+            height: f.height ?? 0,
+            storage_path: storagePath(userId, f.id),
+            deleted: true,
+            updated_at: new Date(f.updatedAt ?? Date.now()).toISOString(),
+            client_id: f.clientId ?? null,
+          },
+          { onConflict: "id" },
+        );
+      if (error) {
+        if (isMissingTableError(error)) { scheduleBackendMissing = true; return; }
+        continue; // sonraki denemede tekrar
+      }
+      await client.storage.from("schedules").remove([storagePath(userId, f.id)]);
+      await purgeScheduleFile(f.id);
+    }
+
+    // 2) Yeni/henüz yüklenmemiş dosyaları yükle.
+    for (const f of local.filter((x) => !x.deleted && !x.synced)) {
+      const up = await client.storage
+        .from("schedules")
+        .upload(storagePath(userId, f.id), f.blob, { upsert: true, contentType: f.blob.type || undefined });
+      if (up.error) {
+        // Bucket yoksa Storage "Bucket not found" döner.
+        if (/bucket not found/i.test(up.error.message)) { scheduleBackendMissing = true; return; }
+        continue;
+      }
+      const { error } = await client.from("schedule_files").upsert(
+        {
+          id: f.id,
+          user_id: userId,
+          kind: f.kind ?? "image",
+          name: f.name ?? null,
+          width: f.width ?? 0,
+          height: f.height ?? 0,
+          storage_path: storagePath(userId, f.id),
+          deleted: false,
+          created_at: new Date(f.createdAt).toISOString(),
+          updated_at: new Date(f.updatedAt ?? f.createdAt).toISOString(),
+          client_id: f.clientId ?? null,
+        },
+        { onConflict: "id" },
+      );
+      if (error) {
+        if (isMissingTableError(error)) { scheduleBackendMissing = true; return; }
+        continue;
+      }
+      await markScheduleSynced(f.id);
+    }
+
+    // 3) Buluttaki dosyalardan bu cihazda olmayanları indir.
+    const { data: rows, error: listErr } = await client
+      .from("schedule_files")
+      .select("*")
+      .eq("user_id", userId);
+    if (listErr) {
+      if (isMissingTableError(listErr)) scheduleBackendMissing = true;
+      return;
+    }
+    const localIds = new Set((await listScheduleFilesRaw()).map((x) => x.id));
+    let indirildi = false;
+    for (const r of rows ?? []) {
+      if (r.deleted || localIds.has(r.id)) continue;
+      const dl = await client.storage.from("schedules").download(r.storage_path);
+      if (dl.error || !dl.data) continue;
+      await putScheduleFileFromCloud({
+        id: r.id,
+        kind: (r.kind ?? "image") as "image" | "sheet",
+        name: r.name ?? undefined,
+        blob: dl.data,
+        width: r.width ?? 0,
+        height: r.height ?? 0,
+        createdAt: Date.parse(r.created_at ?? r.updated_at),
+        updatedAt: Date.parse(r.updated_at),
+        clientId: r.client_id ?? undefined,
+        deleted: false,
+        synced: true,
+      } as ScheduleFile);
+      indirildi = true;
+    }
+    if (indirildi && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("gmt-data-changed"));
+    }
+  } catch (e) {
+    console.warn("[sync] ders programı dosyaları senkronize edilemedi:", e);
+  }
+}
+
 // Pull remote rows and merge with last-write-wins on updated_at.
 export async function pullRemote(): Promise<void> {
   if (!isCloudEnabled()) return;
@@ -330,13 +462,17 @@ export function initSync() {
   if (typeof window === "undefined") return;
 
   const trigger = () => {
-    void flushSyncQueue();
+    void (async () => {
+      await flushSyncQueue();
+      await syncScheduleFiles();
+    })();
   };
   window.addEventListener("gmt-enqueue", trigger);
   window.addEventListener("online", () => {
     void (async () => {
       await flushSyncQueue();
       await pullRemote();
+      await syncScheduleFiles();
     })();
   });
   window.addEventListener("offline", () => setState("offline"));
@@ -355,5 +491,6 @@ export function initSync() {
   void (async () => {
     await flushSyncQueue();
     await pullRemote();
+    await syncScheduleFiles();
   })();
 }
