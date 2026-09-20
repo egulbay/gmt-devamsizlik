@@ -1101,6 +1101,37 @@ export default function App() {
     return m;
   }, [selectedRecords]);
 
+  // Alt çubuk yalnızca sekme köklerinde: ders/proje detayında ve uzun-basma
+  // düzenleme modlarında gizlenir (oralarda kendi geri/bitti kontrolleri var).
+  const showNav =
+    (screen === "home" || screen === "projects" || screen === "schedule" || screen === "settings") &&
+    !editMode &&
+    !projectEditMode &&
+    !(screen === "projects" && selectedProjectId);
+
+  // ＋ butonunun yeri sabit sayıyla değil ölçümle belirleniyor: alt çubuğun
+  // ortasındaki logonun üst kenarı ekranın altından ne kadar yukarıdaysa
+  // (--logo-top), buton ondan --fab-gap kadar yukarıda durur. Telefonun alt
+  // güvenli alanı (çentik/çubuk) ne olursa olsun mesafe aynı kalsın diye
+  // değer çalışma anında ölçülüyor ve ekran döndüğünde yenileniyor.
+  useEffect(() => {
+    const update = () => {
+      const logo = document.querySelector(".tab-center img");
+      if (!logo) return;
+      const top = window.innerHeight - logo.getBoundingClientRect().top;
+      document.documentElement.style.setProperty("--logo-top", `${Math.round(top)}px`);
+    };
+    update();
+    window.addEventListener("resize", update);
+    const bar = document.querySelector(".tab-bar");
+    const ro = bar ? new ResizeObserver(update) : null;
+    if (bar && ro) ro.observe(bar);
+    return () => {
+      window.removeEventListener("resize", update);
+      ro?.disconnect();
+    };
+  }, [showNav]);
+
   if (!ready || !settings) {
     // Profili olan kullanıcı açılışta (özellikle hesaplıysa: buluttan veri
     // çekilirken) bomboş bir ekran görüyordu, sonra her şey birden beliriyordu.
@@ -1137,14 +1168,6 @@ export default function App() {
       </div>
     );
   }
-
-  // Alt çubuk yalnızca sekme köklerinde: ders/proje detayında ve uzun-basma
-  // düzenleme modlarında gizlenir (oralarda kendi geri/bitti kontrolleri var).
-  const showNav =
-    (screen === "home" || screen === "projects" || screen === "schedule" || screen === "settings") &&
-    !editMode &&
-    !projectEditMode &&
-    !(screen === "projects" && selectedProjectId);
 
   // ======================= RENDER ==========================================
   return (
@@ -1425,14 +1448,15 @@ export default function App() {
           ))}
         </div>
 
-        <div className="stack mt8" style={{ marginBottom: 76 }}>
+        {/* Ekleme butonu artık serbest değil, listenin altındaki eylem
+            bloğunun ilk sırasında: ＋ · Dışa Aktar · Yeni Dönem. */}
+        <div className="stack home-actions">
           <button className="btn-ghost" onClick={() => setExportSheet({ scope: "all" })}>
             <ShareIcon /> {t.exportShare}
           </button>
           <button className="btn-ghost" onClick={() => setSemesterSheet(true)}>{t.newSemester}</button>
+          <button className="add-round" onClick={openAddCourse} aria-label="add"><PlusIcon /></button>
         </div>
-
-        <button className="fab" onClick={openAddCourse} aria-label="add"><PlusIcon /></button>
       </>
     );
   }
@@ -2007,7 +2031,9 @@ export default function App() {
         )}
 
         {projects.length > 0 && !projectEditMode && (
-          <button className="fab" onClick={openAddProject} aria-label="add-project"><PlusIcon /></button>
+          <div className="stack home-actions">
+            <button className="add-round" onClick={openAddProject} aria-label="add-project"><PlusIcon /></button>
+          </div>
         )}
       </div>
     );

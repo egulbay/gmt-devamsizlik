@@ -23,6 +23,8 @@
   --border: rgba(20, 15, 10, 0.18);
   --track: #efeae3;
   --elev: #ffffff;
+  /* ＋ butonunun logoya ve üstündeki bölüme olan eşit mesafesi */
+  --fab-gap: 22px;
 }
 
 /* Theme: Dark — "Arduvaz"
@@ -396,26 +398,6 @@ a {
 .cc-none { color: var(--warn-high); }
 
 /* ---- FAB ---- */
-.fab {
-  position: fixed;
-  bottom: max(26px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: 30px;
-  line-height: 1;
-  border: none;
-  box-shadow: 0 10px 24px rgba(255, 90, 31, 0.4);
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 /* ---- Empty state ---- */
 .empty-state {
   flex: 1;
@@ -1285,11 +1267,34 @@ a {
   align-items: flex-start;
   justify-content: center;
   pointer-events: none;
+  position: relative;
 }
+/* Çerçevenin YALNIZCA çubuk çizgisinin üstünde kalan yayı görünür: daire
+   çizilir, çizginin altında kalan kısmı kırpılır. Böylece çubuğun üst çizgisi
+   logonun etrafından dolanıp geçiyormuş gibi durur. */
+.tab-center::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -19px;
+  width: 72px;
+  height: 72px;
+  margin-left: -36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  /* Tam çubuk çizgisinde bitsin: çerçeve .tab-center'ın 19px üstünden
+     başlıyor, çizgi ise 6px üstünde (çubuğun üst iç boşluğu) — yani görünür
+     yay 13px. Altı tamamen kırpılır. */
+  clip-path: inset(0 0 calc(100% - 13px) 0);
+  z-index: 0;
+}
+.tab-center img { position: relative; z-index: 1; }
 .tab-center img {
   width: 56px;
   height: 56px;
-  margin-top: -22px;
+  /* Çubuktan taşma payı: -22px fazla yüksekti, biraz aşağı alındı. */
+  margin-top: -12px;
   padding: 11px;
   border-radius: 50%;
   background: var(--surface);
@@ -1303,15 +1308,11 @@ a {
   .tab-btn.on .tab-ic { animation: none; }
 }
 /* Çubuk varken içerik ve + butonu çubuğun altında kalmasın. */
-.has-nav .scr { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
-/* Alt çubukta artık ortada logo var; ＋ butonu ortada kalsaydı onun üstüne
-   binerdi — sağ alta alındı (çubuğun üstünde, kabuk genişliğine göre). */
-.has-nav .fab {
-  bottom: calc(80px + env(safe-area-inset-bottom));
-  left: auto;
-  right: max(18px, calc(50% - 202px));
-  transform: none;
-}
+/* ＋ butonunun altındaki boşluk: sayfanın alt dolgusu, logonun üst kenarı
+   (--logo-top, uygulama ölçüp yazıyor) + --fab-gap kadar. Butonun üstündeki
+   boşluk da (.add-round margin-top) aynı --fab-gap olduğu için buton, bir
+   üstündeki bölümle logo arasında ORTALANMIŞ olur. */
+.has-nav .scr { padding-bottom: calc(var(--logo-top, 90px) + var(--fab-gap)); }
 
 /* ---- Açılış iskeleti ---- */
 .sk {
@@ -1397,7 +1398,6 @@ a {
    kırmızı Arduvaz zeminde sırıtıyordu). */
 .thm-dark .cal-cell.marked { background: var(--warn-high); }
 /* Koyu temada renkli ışıma gölgesi yok — nötr, yumuşak gölge. */
-.thm-dark .fab { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45); }
 
 /* ---- Ders programı: Excel/CSV dosyaları ---- */
 .sch-add-row { display: flex; gap: 10px; }
@@ -1508,3 +1508,27 @@ a {
   border: 1px solid var(--border);
   background: var(--track);
 }
+
+/* Eylem bloğu: Dışa Aktar · Yeni Dönem · ＋ (Projeler'de yalnızca ＋)
+   Blok listenin hemen altında durur (ekranın dibine itilmez). ＋ bloğun son
+   öğesi olduğu için blok yukarı/aşağı kaydıkça o da birlikte taşınır;
+   aralarındaki mesafe her zaman --fab-gap kalır. */
+.home-actions { margin-top: 26px; margin-bottom: 0; gap: 10px; }
+.add-round {
+  align-self: center;
+  /* Üstündeki boşluk = altındaki boşluk → buton ikisinin ortasında kalır.
+     Blok içinde zaten 10px'lik aralık (gap) olduğu için farkı ekliyoruz. */
+  margin-top: calc(var(--fab-gap) - 10px);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.add-round svg { width: 22px; height: 22px; }
+.add-round:active { transform: scale(0.94); }
