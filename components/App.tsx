@@ -19,8 +19,9 @@ import {
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
-import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SunIcon, TrashIcon } from "./icons";
+import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SheetIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
+import SheetViewer from "./SheetViewer";
 
 type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings";
 type SortMode = "default" | "near" | "name" | "grade";
@@ -89,11 +90,14 @@ export default function App() {
 
   // Ders programı fotoğrafları — blob'lar IndexedDB'de, ekranda object URL
   // ile gösteriliyor (URL'ler liste değişince serbest bırakılıyor).
-  const [scheduleImgs, setScheduleImgs] = useState<{ id: string; url: string; w: number; h: number }[]>([]);
+  const [scheduleImgs, setScheduleImgs] = useState<
+    { id: string; kind: "image" | "sheet"; name: string; url: string | null; blob: Blob; w: number; h: number }[]
+  >([]);
   const [scheduleViewId, setScheduleViewId] = useState<string | null>(null);
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [pendingDeleteScheduleId, setPendingDeleteScheduleId] = useState<string | null>(null);
   const scheduleFileRef = useRef<HTMLInputElement>(null);
+  const scheduleSheetRef = useRef<HTMLInputElement>(null);
 
   // Projeler (deneysel) — aktif dönemin proje listesi.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -742,17 +746,26 @@ export default function App() {
   };
   // ---- ders programı fotoğrafları ------------------------------------------
   const loadScheduleImages = useCallback(async () => {
-    const rows = await repo.listScheduleImages();
+    const rows = await repo.listScheduleFiles();
     setScheduleImgs((prev) => {
-      prev.forEach((p) => URL.revokeObjectURL(p.url));
-      return rows.map((r) => ({ id: r.id, url: URL.createObjectURL(r.blob), w: r.width, h: r.height }));
+      prev.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+      return rows.map((r) => ({
+        id: r.id,
+        kind: (r.kind ?? "image") as "image" | "sheet",
+        name: r.name ?? "",
+        // Tablolarda önizleme görseli yok; blob doğrudan görüntüleyiciye gider.
+        url: (r.kind ?? "image") === "image" ? URL.createObjectURL(r.blob) : null,
+        blob: r.blob,
+        w: r.width,
+        h: r.height,
+      }));
     });
   }, []);
   // Ekran kapanınca blob URL'lerini bırak — büyük fotoğraflar belleği tutmasın.
   useEffect(() => {
     if (screen !== "schedule") {
       setScheduleImgs((prev) => {
-        prev.forEach((p) => URL.revokeObjectURL(p.url));
+        prev.forEach((p) => p.url && URL.revokeObjectURL(p.url));
         return prev.length ? [] : prev;
       });
     }
@@ -784,11 +797,28 @@ export default function App() {
       setScheduleBusy(false);
     }
   };
+  const onScheduleSheetPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
+    setScheduleBusy(true);
+    try {
+      for (const f of files) await repo.addScheduleSheet(f);
+      await loadScheduleImages();
+    } catch (err) {
+      showToast(
+        t.notifDemoTitle,
+        (err as Error)?.message === "too-large" ? t.sheetTooLarge : t.scheduleAddFailed,
+      );
+    } finally {
+      setScheduleBusy(false);
+    }
+  };
   const doDeleteScheduleImage = async () => {
     const id = pendingDeleteScheduleId;
     setPendingDeleteScheduleId(null);
     if (!id) return;
-    await repo.deleteScheduleImage(id);
+    await repo.deleteScheduleFile(id);
     await loadScheduleImages();
   };
 
@@ -1751,6 +1781,7 @@ export default function App() {
   function renderSchedule() {
     const viewing = scheduleViewId ? scheduleImgs.find((i) => i.id === scheduleViewId) ?? null : null;
     const pick = () => scheduleFileRef.current?.click();
+    const pickSheet = () => scheduleSheetRef.current?.click();
     return (
       <div className="scr">
         <div className="top-row">
@@ -1766,6 +1797,15 @@ export default function App() {
           hidden
           onChange={(e) => void onSchedulePicked(e)}
         />
+        {/* Excel/CSV: bölümün paylaştığı program dosyası olduğu gibi saklanır. */}
+        <input
+          ref={scheduleSheetRef}
+          type="file"
+          accept=".xlsx,.xlsm,.csv,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+          multiple
+          hidden
+          onChange={(e) => void onScheduleSheetPicked(e)}
+        />
 
         {scheduleImgs.length === 0 ? (
           <div className="empty-state">
@@ -1775,6 +1815,9 @@ export default function App() {
             <button className="btn-primary" onClick={pick} disabled={scheduleBusy}>
               {scheduleBusy ? t.scheduleSaving : t.addSchedulePhoto}
             </button>
+            <button className="btn-ghost" onClick={pickSheet} disabled={scheduleBusy}>
+              {t.addScheduleSheet}
+            </button>
             <div className="fs12 sub">{t.scheduleLocalHint}</div>
           </div>
         ) : (
@@ -1782,15 +1825,25 @@ export default function App() {
             <div className="sch-list">
               {scheduleImgs.map((img) => (
                 <div key={img.id} className="sch-card">
-                  <button className="sch-thumb" onClick={() => openScheduleViewer(img.id)}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={img.url}
-                      alt={t.scheduleTitle}
-                      style={img.w && img.h ? { aspectRatio: `${img.w} / ${img.h}` } : undefined}
-                    />
-                    <span className="sch-open-chip">{t.scheduleTapToOpen}</span>
-                  </button>
+                  {img.kind === "sheet" ? (
+                    <button className="sch-sheet" onClick={() => openScheduleViewer(img.id)}>
+                      <span className="sch-sheet-ic"><SheetIcon /></span>
+                      <span className="sch-sheet-text">
+                        <span className="fw7 fs14">{img.name}</span>
+                        <span className="fs12 sub">{t.scheduleTapToOpen}</span>
+                      </span>
+                    </button>
+                  ) : (
+                    <button className="sch-thumb" onClick={() => openScheduleViewer(img.id)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={img.url ?? ""}
+                        alt={t.scheduleTitle}
+                        style={img.w && img.h ? { aspectRatio: `${img.w} / ${img.h}` } : undefined}
+                      />
+                      <span className="sch-open-chip">{t.scheduleTapToOpen}</span>
+                    </button>
+                  )}
                   <button
                     className="icon-btn small sch-del"
                     onClick={() => setPendingDeleteScheduleId(img.id)}
@@ -1801,14 +1854,35 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <button className="btn-ghost" onClick={pick} disabled={scheduleBusy}>
-              {scheduleBusy ? t.scheduleSaving : t.addAnotherSchedulePhoto}
-            </button>
+            <div className="sch-add-row">
+              <button className="btn-ghost" onClick={pick} disabled={scheduleBusy}>
+                {scheduleBusy ? t.scheduleSaving : t.addAnotherSchedulePhoto}
+              </button>
+              <button className="btn-ghost" onClick={pickSheet} disabled={scheduleBusy}>
+                {t.addScheduleSheet}
+              </button>
+            </div>
             <div className="fs12 sub" style={{ textAlign: "center" }}>{t.scheduleLocalHint}</div>
           </>
         )}
 
-        {viewing && <ScheduleViewer src={viewing.url} hint={t.scheduleZoomHint} onClose={closeScheduleViewer} />}
+        {viewing && viewing.kind === "sheet" && (
+          <SheetViewer
+            blob={viewing.blob}
+            name={viewing.name}
+            strings={{
+              loading: t.sheetLoading,
+              error: t.sheetError,
+              share: t.sheetShare,
+              truncated: t.sheetTruncated,
+              empty: t.sheetEmpty,
+            }}
+            onClose={closeScheduleViewer}
+          />
+        )}
+        {viewing && viewing.kind === "image" && viewing.url && (
+          <ScheduleViewer src={viewing.url} hint={t.scheduleZoomHint} onClose={closeScheduleViewer} />
+        )}
         {pendingDeleteScheduleId && (
           <ConfirmSheet
             title={t.deleteScheduleTitle}

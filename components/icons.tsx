@@ -72,6 +72,15 @@ export function BellIcon() {
   );
 }
 
+export function SheetIcon() {
+  return (
+    <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.6" y="4" width="16.8" height="16" rx="2.4" />
+      <path d="M3.6 9.2h16.8M9.4 9.2V20M3.6 14.6h16.8" />
+    </svg>
+  );
+}
+
 export function CalendarIcon() {
   return (
     <svg className="ico-thm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">

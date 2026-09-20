@@ -1340,3 +1340,99 @@ a {
 .thm-dark .cal-cell.marked { background: var(--warn-high); }
 /* Koyu temada renkli ışıma gölgesi yok — nötr, yumuşak gölge. */
 .thm-dark .fab { box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45); }
+
+/* ---- Ders programı: Excel/CSV dosyaları ---- */
+.sch-add-row { display: flex; gap: 10px; }
+.sch-add-row .btn-ghost { flex: 1; }
+.sch-sheet {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  /* Sağda silme butonu duruyor (.sch-del, mutlak konumlu) — dosya adı onun
+     altına girmesin. */
+  padding: 14px 54px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--text);
+}
+.sch-sheet-ic {
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sch-sheet-ic .ico-thm { width: 22px; height: 22px; }
+.sch-sheet-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sch-sheet-text .fw7 { overflow-wrap: anywhere; }
+
+/* Tam ekran tablo görüntüleyici */
+.sheet-view { display: flex; flex-direction: column; background: var(--bg); }
+.shv-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(12px, env(safe-area-inset-top)) 12px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.shv-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shv-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.shv-btn:disabled { opacity: 0.4; }
+.shv-tabs { display: flex; gap: 6px; padding: 8px 12px; overflow-x: auto; flex-shrink: 0; }
+.shv-tab {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 700;
+}
+.shv-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Tablo hem yatay hem dikey kaydırılır; başlık satırı sabitlenmiyor çünkü
+   ders programlarında başlık her zaman ilk satırda olmuyor. */
+.shv-body { flex: 1; overflow: auto; padding: 0 12px 24px; -webkit-overflow-scrolling: touch; }
+.shv-table { border-collapse: collapse; }
+.shv-table td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  color: var(--text);
+  vertical-align: middle;
+  white-space: pre-wrap;
+  min-width: 64px;
+  max-width: 260px;
+}
+.shv-msg { padding: 24px 8px; color: var(--sub); font-size: 13px; text-align: center; }
+.shv-truncated { padding-top: 12px; }
+.shv-share-fallback { margin: 14px auto 0; max-width: 260px; }

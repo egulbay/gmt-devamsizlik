@@ -8,7 +8,7 @@ import type {
   Theme,
   Project,
   ProjectTodo,
-  ScheduleImage,
+  ScheduleFile,
 } from "../types";
 
 const SETTINGS_KEY = "app";
@@ -666,17 +666,38 @@ async function compressImage(file: Blob): Promise<{ blob: Blob; width: number; h
   }
 }
 
-export async function listScheduleImages(): Promise<ScheduleImage[]> {
-  return db().scheduleImages.orderBy("createdAt").toArray();
+export async function listScheduleFiles(): Promise<ScheduleFile[]> {
+  const rows = await db().scheduleImages.orderBy("createdAt").toArray();
+  // Excel desteğinden önce eklenmiş kayıtlarda `kind` yok; onlar fotoğraf.
+  return rows.map((r) => ({ ...r, kind: r.kind ?? "image" }));
 }
 
-export async function addScheduleImage(file: Blob): Promise<ScheduleImage> {
+export async function addScheduleImage(file: Blob): Promise<ScheduleFile> {
   const { blob, width, height } = await compressImage(file);
-  const img: ScheduleImage = { id: newId("sch"), blob, width, height, createdAt: Date.now() };
+  const img: ScheduleFile = { id: newId("sch"), kind: "image", blob, width, height, createdAt: Date.now() };
   await db().scheduleImages.put(img);
   return img;
 }
 
-export async function deleteScheduleImage(id: string): Promise<void> {
+// Excel/CSV: dosya olduğu gibi saklanır (sıkıştırma yok) — hem uygulama içinde
+// tablo olarak açılabilsin hem de gerekirse telefonda paylaşılabilsin.
+export const SCHEDULE_SHEET_MAX_BYTES = 10 * 1024 * 1024;
+
+export async function addScheduleSheet(file: File): Promise<ScheduleFile> {
+  if (file.size > SCHEDULE_SHEET_MAX_BYTES) throw new Error("too-large");
+  const row: ScheduleFile = {
+    id: newId("sch"),
+    kind: "sheet",
+    name: file.name,
+    blob: file,
+    width: 0,
+    height: 0,
+    createdAt: Date.now(),
+  };
+  await db().scheduleImages.put(row);
+  return row;
+}
+
+export async function deleteScheduleFile(id: string): Promise<void> {
   await db().scheduleImages.delete(id);
 }

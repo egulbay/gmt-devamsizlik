@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Course, AbsenceRecord, Semester, Settings, SyncOp, Project, ScheduleImage } from "../types";
+import type { Course, AbsenceRecord, Semester, Settings, SyncOp, Project, ScheduleFile } from "../types";
 
 // Offline-first local store. All user data lives here (IndexedDB) — never in
 // localStorage, per the architecture rules.
@@ -10,7 +10,7 @@ export class GmtDexie extends Dexie {
   settings!: Table<Settings, string>;
   syncQueue!: Table<SyncOp, number>;
   projects!: Table<Project, string>;
-  scheduleImages!: Table<ScheduleImage, string>;
+  scheduleImages!: Table<ScheduleFile, string>;
 
   constructor() {
     super("gmt-devamsizlik");

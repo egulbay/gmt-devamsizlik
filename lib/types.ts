@@ -73,10 +73,18 @@ export interface Project {
   deleted: boolean; // tombstone
 }
 
-// Ders programı fotoğrafı — yalnızca bu cihazda (IndexedDB) saklanır,
-// buluta senkronize edilmez.
-export interface ScheduleImage {
+// Ders programı dosyası: fotoğraf ya da Excel/CSV tablosu. Yalnızca bu cihazda
+// (IndexedDB) saklanır, buluta senkronize edilmez.
+//
+// NOT: Tablo adı tarihsel olarak "scheduleImages" kaldı ve şema değişmedi —
+// Dexie'de alan eklemek göç (migration) gerektirmiyor. Excel desteği eklenirken
+// tabloyu yeniden adlandırmak, var olan kullanıcıların fotoğraflarını taşımayı
+// gerektirirdi; gereksiz risk. `kind` taşımayan eski kayıtlar fotoğraftır.
+export interface ScheduleFile {
   id: string;
+  kind?: "image" | "sheet";
+  /** Yalnızca tablolarda: kullanıcıya gösterilecek dosya adı. */
+  name?: string;
   blob: Blob;
   width: number;
   height: number;
