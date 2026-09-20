@@ -1439,3 +1439,14 @@ a {
 
 /* Ders programı ekleme seçimi (fotoğraf / Excel) */
 .chooser-row { padding: 10px 0; }
+
+/* Ayarlar: Google profil fotoğrafı (yoksa .set-ic kişi simgesi gösterilir) */
+.set-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--track);
+}

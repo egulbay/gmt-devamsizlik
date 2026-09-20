@@ -100,6 +100,9 @@ export interface Settings {
   userId: string | null; // supabase user id (hesaplı kullanıcı)
   activeSemesterId: string | null;
   notificationsEnabled: boolean;
+  // Google hesabının profil fotoğrafı (hesapla girişte alınır). Yalnızca
+  // bu cihazda tutulur; buluta senkronize edilmez.
+  avatarUrl?: string | null;
   // İlk açılış tanıtımı gösterildi/atlandı mı (yalnızca yerel).
   onboarded?: boolean;
   updatedAt: number;

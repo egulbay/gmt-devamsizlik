@@ -495,8 +495,12 @@ export async function resetProfile(): Promise<void> {
 // Reassign all local data to the signed-in user (data already lives locally;
 // we just flip the flags and let the sync engine push it to the cloud).
 // ---------------------------------------------------------------------------
-export async function migrateGuestToAccount(userId: string, userName: string | null) {
-  await patchSettings({ isGuest: false, userId, userName });
+export async function migrateGuestToAccount(
+  userId: string,
+  userName: string | null,
+  avatarUrl?: string | null,
+) {
+  await patchSettings({ isGuest: false, userId, userName, avatarUrl: avatarUrl ?? null });
   // Re-enqueue everything so it gets pushed to the account's cloud store.
   const clientId = await getClientId();
   const courses = await db().courses.toArray();

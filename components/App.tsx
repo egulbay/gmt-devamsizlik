@@ -101,6 +101,9 @@ export default function App() {
   // "Ders Programı Ekle" → fotoğraf mı, Excel mi? Seçim alttan açılan
   // pencerede yapılır; ekranda tek buton durur.
   const [scheduleAddOpen, setScheduleAddOpen] = useState(false);
+  // Profil fotoğrafı yüklenemezse (çevrimdışı, bağlantı yok, adres bayat)
+  // kişi simgesine düşülür.
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   // Projeler (deneysel) — aktif dönemin proje listesi.
   const [projects, setProjects] = useState<Project[]>([]);
@@ -258,15 +261,20 @@ export default function App() {
           (u.user_metadata?.name as string) ||
           u.email ||
           null;
+        // Google profil fotoğrafı: sağlayıcıya göre "avatar_url" ya da "picture".
+        const avatarUrl =
+          (u.user_metadata?.avatar_url as string) ||
+          (u.user_metadata?.picture as string) ||
+          null;
         if (isFreshSignIn) {
-          await repo.migrateGuestToAccount(u.id, name);
+          await repo.migrateGuestToAccount(u.id, name, avatarUrl);
           try {
             window.history.replaceState({}, "", window.location.pathname);
           } catch {
             /* ignore */
           }
         } else {
-          await repo.patchSettings({ isGuest: false, userId: u.id, userName: name });
+          await repo.patchSettings({ isGuest: false, userId: u.id, userName: name, avatarUrl });
         }
         // Pull down any existing cloud data BEFORE the first reload(). reload()
         // derives the active semester locally (ensureActiveSemester), and on a
@@ -1757,7 +1765,20 @@ export default function App() {
         <div className="set-group">
           <div className="set-title">{t.setAccount}</div>
           <div className="set-row">
-            <span className="set-ic"><PersonIcon /></span>
+            {/* Fotoğraf Google'ın sunucusundan geliyor: çevrimdışıyken ya da
+                bağlantı kopukken yüklenemez — o durumda kişi simgesine döner. */}
+            {!settings!.isGuest && settings!.avatarUrl && !avatarFailed ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="set-avatar"
+                src={settings!.avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              <span className="set-ic"><PersonIcon /></span>
+            )}
             <div className="set-row-text">
               <div className="fw7 fs14">{settings!.userName}</div>
               <div className="fs12 sub">{settings!.isGuest ? t.accountGuest : t.accountGoogle}</div>
