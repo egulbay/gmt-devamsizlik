@@ -140,6 +140,38 @@ export async function evaluateNotifications(
   return alerts;
 }
 
+// ---------------------------------------------------------------------------
+// Web Push aboneliği
+//
+// Uygulama içindeki kontrol yalnızca uygulama açıkken çalışır. Telefona
+// uygulama kapalıyken de bildirim düşmesi için tarayıcının verdiği "abonelik"
+// adresi sunucuya kaydedilir; günlük çalışan iş (app/api/cron/notify) oraya
+// gönderir. Abonelik cihaza özeldir: her telefon kendi kaydını oluşturur.
+// ---------------------------------------------------------------------------
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const raw = atob((base64 + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+export async function subscribeToPush(): Promise<PushSubscription | null> {
+  const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!key || !notificationsSupported() || Notification.permission !== "granted") return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (!("pushManager" in reg)) return null;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) return existing;
+    return await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(key) as BufferSource,
+    });
+  } catch (e) {
+    console.warn("[push] abonelik kurulamadı:", e);
+    return null;
+  }
+}
+
 export async function registerServiceWorker(): Promise<void> {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   try {

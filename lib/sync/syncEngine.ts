@@ -49,6 +49,10 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
       archived: c.archived,
       // İsteğe bağlı: 0 = Hazırlık, 1..6 = sınıf, null = belirtilmemiş.
       grade: c.grade ?? null,
+      // Bildirim durumu: sunucu da aynı uyarıyı göndermesin diye buluta yazılır.
+      notified_two_left: c.notifiedTwoLeft ?? false,
+      notified_limit: c.notifiedLimit ?? false,
+      last_weekly_notify_at: c.lastWeeklyNotifyAt ? new Date(c.lastWeeklyNotifyAt).toISOString() : null,
       deleted: c.deleted,
       updated_at: new Date(c.updatedAt).toISOString(),
       client_id: c.clientId,
@@ -111,8 +115,19 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
 // çalıştırılırsa (sayfa yenilenince) alanlar yeniden gönderilmeye başlar.
 let optionalColsMissing = false;
 
+// Sonradan eklenen, migration gerektiren kolonlar. Supabase'de yoksa bunları
+// düşürüp kaydı yine de gönderiyoruz ki veri kuyrukta takılıp kalmasın.
+const OPTIONAL_COLS = [
+  "grade",
+  "note",
+  "notified_two_left",
+  "notified_limit",
+  "last_weekly_notify_at",
+];
+
 function stripOptionalCols(row: Record<string, unknown>): Record<string, unknown> {
-  const { grade: _g, note: _n, ...rest } = row;
+  const rest = { ...row };
+  for (const k of OPTIONAL_COLS) delete rest[k];
   return rest;
 }
 
@@ -125,8 +140,8 @@ function isUnknownColumnError(e: unknown): boolean {
   return (
     code === "PGRST204" ||
     code === "42703" ||
-    /could not find the '(grade|note)' column/i.test(msg) ||
-    /column "?(grade|note)"? (of relation .* )?does not exist/i.test(msg)
+    /could not find the '[^']+' column/i.test(msg) ||
+    /column "?[a-z_]+"? (of relation .* )?does not exist/i.test(msg)
   );
 }
 
@@ -214,6 +229,31 @@ export async function flushSyncQueue(): Promise<void> {
   } finally {
     flushing = false;
   }
+}
+
+// Telefonun push aboneliğini buluta kaydeder. Sunucudaki günlük iş bu kayda
+// bakarak bildirim gönderir. Her cihaz kendi kaydını oluşturur; abonelik
+// adresi benzersiz olduğu için tekrar çalıştırmak zararsız.
+export async function savePushSubscription(sub: PushSubscription, lang: string): Promise<void> {
+  if (!isCloudEnabled()) return;
+  const client = supabase();
+  if (!client) return;
+  const settings = await getSettings();
+  if (settings.isGuest || !settings.userId) return;
+  const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return;
+  const { error } = await client.from("push_subscriptions").upsert(
+    {
+      endpoint: json.endpoint,
+      user_id: settings.userId,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
+      lang,
+      last_seen: new Date().toISOString(),
+    },
+    { onConflict: "endpoint" },
+  );
+  if (error) console.warn("[push] abonelik kaydedilemedi:", error.message);
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +432,11 @@ export async function pullRemote(): Promise<void> {
         createdAt: Date.parse(c.updated_at),
       } as Course;
       if ("grade" in c) remote.grade = c.grade ?? null;
+      if ("notified_two_left" in c) remote.notifiedTwoLeft = !!c.notified_two_left;
+      if ("notified_limit" in c) remote.notifiedLimit = !!c.notified_limit;
+      if ("last_weekly_notify_at" in c && c.last_weekly_notify_at) {
+        remote.lastWeeklyNotifyAt = Date.parse(c.last_weekly_notify_at);
+      }
       await mergeLocal("courses", remote);
     }
     for (const r of recs ?? []) {

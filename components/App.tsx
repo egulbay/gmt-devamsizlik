@@ -8,7 +8,7 @@ import type { AbsenceRecord, Course, Lang, Project, ProjectTodo, Semester, Setti
 import * as repo from "@/lib/db/repo";
 import { haptic, HAPTIC_PRESS, HAPTIC_TICK } from "@/lib/haptics";
 import { isCloudEnabled, supabase } from "@/lib/sync/supabaseClient";
-import { initSync, flushSyncQueue, pullRemote } from "@/lib/sync/syncEngine";
+import { initSync, flushSyncQueue, pullRemote, savePushSubscription } from "@/lib/sync/syncEngine";
 import {
   registerServiceWorker,
   requestNotificationPermission,
@@ -16,6 +16,7 @@ import {
   evaluateNotifications,
   evaluateProjectNotifications,
   notificationsSupported,
+  subscribeToPush,
 } from "@/lib/notifications";
 import { buildTextSummary, shareText, printSummary, type CourseExport } from "@/lib/export";
 import { Calendar } from "./Calendar";
@@ -323,6 +324,13 @@ export default function App() {
         setScreen(s2.userName ? "home" : "login");
         setReady(true);
       }
+
+      // İzin daha önce verilmişse aboneliği (bu cihaz için) tazele: hesap
+      // değişmiş ya da abonelik düşmüş olabilir.
+      void (async () => {
+        const sub = await subscribeToPush();
+        if (sub) await savePushSubscription(sub, s.lang);
+      })();
 
       initSync();
     })();
@@ -644,7 +652,12 @@ export default function App() {
     const perm = await requestNotificationPermission();
     setNotifPerm(perm);
     await repo.patchSettings({ notificationsEnabled: perm === "granted" });
-    if (perm === "granted") showToast(t.notifDemoTitle, t.notifEnabledToast);
+    if (perm === "granted") {
+      showToast(t.notifDemoTitle, t.notifEnabledToast);
+      // Uygulama kapalıyken de bildirim düşebilmesi için telefonu kaydet.
+      const sub = await subscribeToPush();
+      if (sub) await savePushSubscription(sub, lang);
+    }
   };
 
   // ---- course actions -----------------------------------------------------
