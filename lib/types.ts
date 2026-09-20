@@ -111,7 +111,7 @@ export interface Settings {
 // Sync queue entry (offline yazma kuyruğu)
 export interface SyncOp {
   id?: number; // autoincrement
-  table: "courses" | "records" | "semesters";
+  table: "courses" | "records" | "semesters" | "projects";
   rowId: string;
   op: "upsert" | "delete";
   payload: unknown;

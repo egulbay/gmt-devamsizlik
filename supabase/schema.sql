@@ -45,6 +45,24 @@ create table if not exists public.absence_records (
   client_id   text
 );
 
+-- Projeler / ödevler (yapılacaklar listesiyle birlikte)
+create table if not exists public.projects (
+  id           text primary key,
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  name         text not null,
+  course_id    text,
+  semester_id  text,
+  due_date     date,
+  notes        text,
+  todos        jsonb not null default '[]'::jsonb,
+  completed    boolean not null default false,
+  -- Harcanmış teslim hatırlatma eşikleri (14/7/3/1 gün)
+  notified_due_milestones jsonb not null default '[]'::jsonb,
+  deleted      boolean not null default false,
+  updated_at   timestamptz not null default now(),
+  client_id    text
+);
+
 -- ---- Sonradan eklenen kolonlar ---------------------------------------------
 -- `create table if not exists` MEVCUT bir tabloya kolon EKLEMEZ. Bu yüzden
 -- yeni kolonlar ayrıca burada da idempotent şekilde ekleniyor; böylece bu
@@ -56,11 +74,13 @@ alter table public.absence_records add column if not exists note  text;
 create index if not exists idx_courses_user on public.courses (user_id);
 create index if not exists idx_records_user on public.absence_records (user_id);
 create index if not exists idx_semesters_user on public.semesters (user_id);
+create index if not exists idx_projects_user on public.projects (user_id);
 
 -- ---- Row Level Security ---------------------------------------------------
 alter table public.semesters       enable row level security;
 alter table public.courses         enable row level security;
 alter table public.absence_records enable row level security;
+alter table public.projects        enable row level security;
 
 -- semesters
 drop policy if exists "own semesters" on public.semesters;
@@ -75,4 +95,9 @@ create policy "own courses" on public.courses
 -- absence_records
 drop policy if exists "own records" on public.absence_records;
 create policy "own records" on public.absence_records
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- projects
+drop policy if exists "own projects" on public.projects;
+create policy "own projects" on public.projects
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

@@ -1,13 +1,14 @@
 import { db } from "../db/dexie";
 import { getSettings } from "../db/repo";
 import { supabase, isCloudEnabled } from "./supabaseClient";
-import type { SyncState, Course, AbsenceRecord, Semester } from "../types";
+import type { SyncState, Course, AbsenceRecord, Semester, Project } from "../types";
 
 // Maps our local tables to Supabase table names.
 const TABLE_MAP = {
   courses: "courses",
   records: "absence_records",
   semesters: "semesters",
+  projects: "projects",
 } as const;
 
 type Listener = (state: SyncState) => void;
@@ -62,6 +63,24 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
       client_id: r.clientId,
     };
   }
+  if (table === "projects") {
+    const p = row as Project;
+    return {
+      id: p.id,
+      user_id: userId,
+      name: p.name,
+      course_id: p.courseId,
+      semester_id: p.semesterId,
+      due_date: p.dueDate,
+      notes: p.notes ?? null,
+      todos: p.todos ?? [],
+      completed: p.completed,
+      notified_due_milestones: p.notifiedDueMilestones ?? [],
+      deleted: p.deleted,
+      updated_at: new Date(p.updatedAt).toISOString(),
+      client_id: p.clientId,
+    };
+  }
   const s = row as Semester;
   return {
     id: s.id,
@@ -105,6 +124,21 @@ function isUnknownColumnError(e: unknown): boolean {
   );
 }
 
+// Supabase'de "projects" tablosu yoksa (migration 002 henüz çalıştırılmadı)
+// proje satırları gönderilemez. Bu durumda kuyruktan SİLMİYORUZ: oturum
+// boyunca proje işlerini atlayıp diğer tabloları engellemiyoruz, sayfa
+// yenilendiğinde tekrar deneniyor. Migration çalıştırılınca birikmiş proje
+// kayıtları kendiliğinden yüklenir.
+let projectsTableMissing = false;
+
+function isMissingTableError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  const code = err?.code ?? "";
+  const msg = String(err?.message ?? "");
+  // PGRST205: PostgREST şema önbelleğinde tablo yok. 42P01: undefined_table.
+  return code === "PGRST205" || code === "42P01" || /relation .* does not exist/i.test(msg);
+}
+
 let flushing = false;
 
 // Push queued local writes to Supabase. Safe no-op when offline / not signed in.
@@ -126,7 +160,12 @@ export async function flushSyncQueue(): Promise<void> {
 
   try {
     const ops = await db().syncQueue.orderBy("createdAt").toArray();
+    let skippedProjects = false;
     for (const op of ops) {
+      if (op.table === "projects" && projectsTableMissing) {
+        skippedProjects = true;
+        continue;
+      }
       const cloudRow = toCloud(op.table, op.payload, settings.userId);
       const tableName = TABLE_MAP[op.table];
       // Upsert works for both create/update and soft-delete (deleted flag).
@@ -147,10 +186,21 @@ export async function flushSyncQueue(): Promise<void> {
           .from(tableName)
           .upsert(stripOptionalCols(cloudRow), { onConflict: "id" }));
       }
+      if (error && op.table === "projects" && isMissingTableError(error)) {
+        // Tablo yok: bu oturumda projeleri atla, kaydı kuyrukta bırak.
+        projectsTableMissing = true;
+        skippedProjects = true;
+        console.warn(
+          "[sync] Supabase'de 'projects' tablosu yok (migration 002 çalıştırılmamış). " +
+            "Projeler şimdilik yalnızca cihazda; supabase/migrations/002_projects.sql " +
+            "çalıştırıldığında birikmiş kayıtlar yüklenecek.",
+        );
+        continue;
+      }
       if (error) throw error;
       if (op.id != null) await db().syncQueue.delete(op.id);
     }
-    setState("synced");
+    setState(skippedProjects ? "pending" : "synced");
   } catch (e) {
     // Leave items in the queue; will retry on next trigger / reconnect.
     console.warn("[sync] flush failed, will retry:", e);
@@ -169,11 +219,15 @@ export async function pullRemote(): Promise<void> {
   if (settings.isGuest || !settings.userId || !online()) return;
 
   try {
-    const [{ data: sems }, { data: crs }, { data: recs }] = await Promise.all([
+    const [{ data: sems }, { data: crs }, { data: recs }, projRes] = await Promise.all([
       client.from("semesters").select("*").eq("user_id", settings.userId),
       client.from("courses").select("*").eq("user_id", settings.userId),
       client.from("absence_records").select("*").eq("user_id", settings.userId),
+      // Tablo yoksa hata döner; bu, diğer tabloların çekilmesini engellemesin.
+      client.from("projects").select("*").eq("user_id", settings.userId),
     ]);
+    if (projRes.error && isMissingTableError(projRes.error)) projectsTableMissing = true;
+    const projs = projRes.data ?? [];
 
     for (const s of sems ?? []) {
       await mergeLocal("semesters", {
@@ -222,6 +276,23 @@ export async function pullRemote(): Promise<void> {
       if ("note" in r) remote.note = r.note ?? null;
       await mergeLocal("records", remote);
     }
+    for (const p of projs) {
+      await mergeLocal("projects", {
+        id: p.id,
+        name: p.name,
+        courseId: p.course_id ?? null,
+        semesterId: p.semester_id,
+        dueDate: p.due_date ?? null,
+        notes: p.notes ?? null,
+        todos: Array.isArray(p.todos) ? p.todos : [],
+        completed: !!p.completed,
+        notifiedDueMilestones: Array.isArray(p.notified_due_milestones) ? p.notified_due_milestones : [],
+        deleted: !!p.deleted,
+        updatedAt: Date.parse(p.updated_at),
+        clientId: p.client_id,
+        createdAt: Date.parse(p.updated_at),
+      } as Project);
+    }
     if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("gmt-data-changed"));
   } catch (e) {
     console.warn("[sync] pull failed:", e);
@@ -230,12 +301,18 @@ export async function pullRemote(): Promise<void> {
 
 // Last-write-wins merge.
 async function mergeLocal(
-  table: "courses" | "records" | "semesters",
-  remote: Course | AbsenceRecord | Semester
+  table: "courses" | "records" | "semesters" | "projects",
+  remote: Course | AbsenceRecord | Semester | Project
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t: any =
-    table === "courses" ? db().courses : table === "records" ? db().records : db().semesters;
+    table === "courses"
+      ? db().courses
+      : table === "records"
+        ? db().records
+        : table === "projects"
+          ? db().projects
+          : db().semesters;
   const local = await t.get(remote.id);
   if (!local || remote.updatedAt >= local.updatedAt) {
     // Preserve local-only fields (createdAt, notif flags) when present.

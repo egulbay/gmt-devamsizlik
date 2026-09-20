@@ -55,7 +55,7 @@ export async function setLang(lang: Lang) {
 // Sync queue
 // ---------------------------------------------------------------------------
 async function enqueue(
-  table: "courses" | "records" | "semesters",
+  table: "courses" | "records" | "semesters" | "projects",
   rowId: string,
   op: "upsert" | "delete",
   payload: unknown
@@ -509,6 +509,8 @@ export async function migrateGuestToAccount(
   for (const s of semesters) await enqueue("semesters", s.id, s.deleted ? "delete" : "upsert", { ...s, clientId });
   for (const c of courses) await enqueue("courses", c.id, c.deleted ? "delete" : "upsert", { ...c, clientId });
   for (const r of records) await enqueue("records", r.id, r.deleted ? "delete" : "upsert", { ...r, clientId });
+  const projects = await db().projects.toArray();
+  for (const p of projects) await enqueue("projects", p.id, p.deleted ? "delete" : "upsert", { ...p, clientId });
 }
 
 export async function pendingSyncCount(): Promise<number> {
@@ -516,14 +518,12 @@ export async function pendingSyncCount(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
-// Projects (deneysel)
+// Projects
 //
-// NOT: Bu tablo şu an buluta senkronize EDİLMİYOR — enqueue() bilerek
-// çağrılmıyor. syncEngine.ts / TABLE_MAP / Supabase şeması "projects"
-// tablosunu tanımıyor; enqueue etseydik kayıtlar sync kuyruğunda sonsuza
-// dek birikip hiç boşalmazdı. Özellik onaylanırsa buluta bağlamak ayrı bir
-// adım (grade/note alanlarını eklerken izlenen desenin aynısı: sync
-// mapping + Supabase migration).
+// Dersler gibi buluta senkronize edilir (supabase/migrations/002_projects.sql).
+// Supabase'de tablo henüz yoksa kayıtlar kuyrukta bekler ve migration
+// çalıştırıldığında kendiliğinden yüklenir — bkz. syncEngine.ts'teki
+// projectsTableMissing.
 // ---------------------------------------------------------------------------
 
 // Teslim tarihi bildirimleri için gün eşikleri — büyükten küçüğe.
@@ -586,6 +586,7 @@ export async function addProject(
     deleted: false,
   };
   await db().projects.put(project);
+  await enqueue("projects", project.id, "upsert", project);
   return project;
 }
 
@@ -606,6 +607,7 @@ export async function updateProject(
     next.notifiedDueMilestones = consumedMilestonesFor(patch.dueDate);
   }
   await db().projects.put(next);
+  await enqueue("projects", id, "upsert", next);
   return next;
 }
 
@@ -613,7 +615,9 @@ export async function deleteProject(id: string): Promise<void> {
   const cur = await db().projects.get(id);
   if (!cur || cur.deleted) return;
   const clientId = await getClientId();
-  await db().projects.put({ ...cur, deleted: true, updatedAt: Date.now(), clientId });
+  const tomb = { ...cur, deleted: true, updatedAt: Date.now(), clientId };
+  await db().projects.put(tomb);
+  await enqueue("projects", id, "delete", tomb);
 }
 
 export async function addProjectTodo(projectId: string, text: string): Promise<Project | undefined> {
