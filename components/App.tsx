@@ -1855,7 +1855,7 @@ export default function App() {
               ))}
             </div>
             <button className="btn-ghost" onClick={() => setScheduleAddOpen(true)} disabled={scheduleBusy}>
-              {scheduleBusy ? t.scheduleSaving : `+ ${t.addScheduleFile}`}
+              {scheduleBusy ? t.scheduleSaving : t.addScheduleFile}
             </button>
             <div className="fs12 sub" style={{ textAlign: "center" }}>{t.scheduleLocalHint}</div>
           </>
