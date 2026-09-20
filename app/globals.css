@@ -1532,3 +1532,50 @@ a {
 }
 .add-round svg { width: 22px; height: 22px; }
 .add-round:active { transform: scale(0.94); }
+
+/* ---- Ders rengi ----
+   Palet anahtarı (coral, blue...) veriyle saklanır; ton burada tanımlanır.
+   Koyu temada aynı renkler bir tık açık, zemin koyu olduğu için. */
+/* 9 seçenek (renksiz + 8 renk) telefon genişliğinde tek satıra sığsın. */
+.color-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--c, var(--track));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.color-dot.on { border-color: var(--text); }
+.color-dot.none { background: var(--track); position: relative; }
+.color-dot.none::after {
+  content: "";
+  position: absolute;
+  inset: 11px 4px;
+  border-top: 2px solid var(--sub);
+  transform: rotate(-45deg);
+}
+/* Kart üzerindeki küçük renk noktası */
+.cc-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--c, var(--sub));
+}
+[data-color="coral"]  { --c: #e2604a; }
+[data-color="orange"] { --c: #e0873c; }
+[data-color="yellow"] { --c: #d4ae3a; }
+[data-color="green"]  { --c: #4f9d69; }
+[data-color="mint"]   { --c: #3fa993; }
+[data-color="blue"]   { --c: #4a86c5; }
+[data-color="purple"] { --c: #8b6fc0; }
+[data-color="pink"]   { --c: #cf6a9c; }
+.thm-dark [data-color="coral"]  { --c: #ef7f6a; }
+.thm-dark [data-color="orange"] { --c: #eda15c; }
+.thm-dark [data-color="yellow"] { --c: #e0c25c; }
+.thm-dark [data-color="green"]  { --c: #6fb88a; }
+.thm-dark [data-color="mint"]   { --c: #5cc3ad; }
+.thm-dark [data-color="blue"]   { --c: #6aa2dc; }
+.thm-dark [data-color="purple"] { --c: #a68adb; }
+.thm-dark [data-color="pink"]   { --c: #e189b5; }

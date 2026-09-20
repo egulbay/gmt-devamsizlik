@@ -8,7 +8,7 @@ import type { AbsenceRecord, Course, Lang, Project, ProjectTodo, Semester, Setti
 import * as repo from "@/lib/db/repo";
 import { haptic, HAPTIC_PRESS, HAPTIC_TICK } from "@/lib/haptics";
 import { isCloudEnabled, supabase } from "@/lib/sync/supabaseClient";
-import { initSync, flushSyncQueue, pullRemote, savePushSubscription } from "@/lib/sync/syncEngine";
+import { initSync, flushSyncQueue, pullRemote, savePushSubscription, savePrefs, fetchPrefs } from "@/lib/sync/syncEngine";
 import {
   registerServiceWorker,
   requestNotificationPermission,
@@ -30,6 +30,9 @@ type SortMode = "default" | "near" | "name" | "grade";
 // Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
 // isteğe bağlı olduğu için boş bırakmak her zaman ulaşılabilir olmalı.
 const GRADE_OPTIONS: (number | null)[] = [null, 0, 1, 2, 3, 4, 5, 6];
+// Ders rengi paleti. Renk kodları CSS'te (globals.css) tanımlı; burada yalnızca
+// anahtarlar duruyor ki tema değişince ton ayarlanabilsin.
+const COURSE_COLORS = ["coral", "orange", "yellow", "green", "mint", "blue", "purple", "pink"] as const;
 // .gw-opt yüksekliği ile AYNI olmalı (globals.css) — snap matematiği buna dayanıyor.
 const WHEEL_ROW_H = 44;
 
@@ -145,6 +148,7 @@ export default function App() {
   const [courseHours, setCourseHours] = useState("");
   // Ders sınıfı — isteğe bağlı, null = belirtilmedi.
   const [courseGrade, setCourseGrade] = useState<number | null>(null);
+  const [courseColor, setCourseColor] = useState<string | null>(null);
   const [dayPopover, setDayPopover] = useState<{
     date: string;
     hours: number;
@@ -285,6 +289,20 @@ export default function App() {
         // orphans previously-synced courses under a freshly-fabricated semester.
         await flushSyncQueue();
         await pullRemote();
+        // Tema/dil tercihi hesapta kayıtlıysa bu cihaza uygula (yeni telefon,
+        // profil sıfırlama). Kayıt yoksa cihazdaki tercih korunur ve buluta
+        // yazılır — böylece ilk giriş de bir sonraki cihaza taşınır.
+        const prefs = await fetchPrefs();
+        const cur = await repo.getSettings();
+        if (prefs?.theme || prefs?.lang) {
+          const patch: { theme?: Theme; lang?: Lang } = {};
+          if (prefs.theme === "dark" || prefs.theme === "light") patch.theme = prefs.theme;
+          if (prefs.lang === "tr" || prefs.lang === "en") patch.lang = prefs.lang;
+          const next = await repo.patchSettings(patch);
+          setSettings(next);
+        } else {
+          void savePrefs(cur.theme, cur.lang);
+        }
         await reload();
         if (cancelled) return;
         setScreen("home");
@@ -596,11 +614,13 @@ export default function App() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setSettings((s) => (s ? { ...s, theme: next } : s));
     await repo.setTheme(next);
+    void savePrefs(next, lang);
   };
   const toggleLang = async () => {
     const next: Lang = lang === "tr" ? "en" : "tr";
     setSettings((s) => (s ? { ...s, lang: next } : s));
     await repo.setLang(next);
+    void savePrefs(theme, next);
   };
   const setThemeTo = async (next: Theme) => {
     if (next !== theme) await toggleTheme();
@@ -666,12 +686,14 @@ export default function App() {
     setCourseName("");
     setCourseHours("");
     setCourseGrade(null);
+    setCourseColor(null);
   };
   const openEditCourse = (c: CourseVM) => {
     setCourseSheet({ editId: c.id });
     setCourseName(c.name);
     setCourseHours(String(c.totalHours));
     setCourseGrade(c.grade ?? null);
+    setCourseColor(c.color ?? null);
   };
   const canSaveCourse = courseName.trim().length > 0 && parseFloat(courseHours) > 0;
   const saveCourse = async () => {
@@ -681,9 +703,9 @@ export default function App() {
     if (courseSheet?.editId) {
       // `grade` her zaman gönderiliyor ki kullanıcı seçimi "Belirtilmedi"e
       // geri çekip sınıfı temizleyebilsin.
-      await repo.updateCourse(courseSheet.editId, { name, totalHours: hours, grade: courseGrade });
+      await repo.updateCourse(courseSheet.editId, { name, totalHours: hours, grade: courseGrade, color: courseColor });
     } else {
-      await repo.addCourse(name, hours, courseGrade);
+      await repo.addCourse(name, hours, courseGrade, courseColor);
     }
     setCourseSheet(null);
     await reload();
@@ -2157,6 +2179,25 @@ export default function App() {
               />
               <div className="field-label">{t.gradeLabel}</div>
               <GradeWheel value={courseGrade} onChange={setCourseGrade} t={t} />
+              <div className="field-label">{t.colorLabel}</div>
+              <div className="color-row" role="group" aria-label={t.colorLabel}>
+                <button
+                  className={`color-dot none${courseColor === null ? " on" : ""}`}
+                  aria-pressed={courseColor === null}
+                  title={t.colorNone}
+                  onClick={() => setCourseColor(null)}
+                />
+                {COURSE_COLORS.map((key) => (
+                  <button
+                    key={key}
+                    className={`color-dot${courseColor === key ? " on" : ""}`}
+                    data-color={key}
+                    aria-pressed={courseColor === key}
+                    aria-label={key}
+                    onClick={() => setCourseColor(key)}
+                  />
+                ))}
+              </div>
               <div className="sheet-actions">
                 <button className="btn-secondary" onClick={() => setCourseSheet(null)}>{t.cancel}</button>
                 <button className="btn-primary" onClick={saveCourse} disabled={!canSaveCourse}>{t.save}</button>
@@ -2764,6 +2805,7 @@ function CourseCard({
             {selected && <CheckIcon />}
           </button>
         )}
+        {c.color && <span className="cc-color" data-color={c.color} aria-hidden="true" />}
         <span className="fw7 fs16" style={{ flex: 1 }}>{c.name}</span>
         {/* Sınıf yalnızca belirtilmişse gösterilir — belirtilmeyenlerde kart
             bugünküyle birebir aynı kalır. */}

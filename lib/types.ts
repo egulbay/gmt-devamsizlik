@@ -15,6 +15,9 @@ export interface Course {
   // Sayı olarak saklanır: doğru sıralanır ve dil değişince bozulmaz
   // (çevrilen şey yalnızca etiket).
   grade?: number | null;
+  // İsteğe bağlı ders rengi. Renk KODU değil, palet anahtarı saklanır
+  // ("coral", "blue"...) — böylece açık/koyu temada farklı ton kullanılabilir.
+  color?: string | null;
   createdAt: number;
   updatedAt: number;
   clientId: string;

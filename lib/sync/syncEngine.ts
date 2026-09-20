@@ -49,6 +49,7 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
       archived: c.archived,
       // İsteğe bağlı: 0 = Hazırlık, 1..6 = sınıf, null = belirtilmemiş.
       grade: c.grade ?? null,
+      color: c.color ?? null,
       // Bildirim durumu: sunucu da aynı uyarıyı göndermesin diye buluta yazılır.
       notified_two_left: c.notifiedTwoLeft ?? false,
       notified_limit: c.notifiedLimit ?? false,
@@ -119,6 +120,7 @@ let optionalColsMissing = false;
 // düşürüp kaydı yine de gönderiyoruz ki veri kuyrukta takılıp kalmasın.
 const OPTIONAL_COLS = [
   "grade",
+  "color",
   "note",
   "notified_two_left",
   "notified_limit",
@@ -229,6 +231,40 @@ export async function flushSyncQueue(): Promise<void> {
   } finally {
     flushing = false;
   }
+}
+
+// Tema ve dil tercihi. Cihaz değişince varsayılana dönmesin diye hesapla
+// birlikte taşınır. Bildirim izni BURADA TUTULMAZ: o, telefonun kendi izni.
+export async function savePrefs(theme: string, lang: string): Promise<void> {
+  if (!isCloudEnabled()) return;
+  const client = supabase();
+  if (!client) return;
+  const settings = await getSettings();
+  if (settings.isGuest || !settings.userId) return;
+  const { error } = await client.from("user_prefs").upsert(
+    { user_id: settings.userId, theme, lang, updated_at: new Date().toISOString() },
+    { onConflict: "user_id" },
+  );
+  if (error && !isMissingTableError(error)) {
+    console.warn("[sync] tercihler kaydedilemedi:", error.message);
+  }
+}
+
+// Girişte buluttaki tercihi getirir. Kayıt yoksa (ilk giriş) null döner ve
+// cihazdaki tercih olduğu gibi kalır.
+export async function fetchPrefs(): Promise<{ theme?: string; lang?: string } | null> {
+  if (!isCloudEnabled()) return null;
+  const client = supabase();
+  if (!client) return null;
+  const settings = await getSettings();
+  if (settings.isGuest || !settings.userId || !online()) return null;
+  const { data, error } = await client
+    .from("user_prefs")
+    .select("theme,lang")
+    .eq("user_id", settings.userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { theme: data.theme ?? undefined, lang: data.lang ?? undefined };
 }
 
 // Telefonun push aboneliğini buluta kaydeder. Sunucudaki günlük iş bu kayda
@@ -432,6 +468,7 @@ export async function pullRemote(): Promise<void> {
         createdAt: Date.parse(c.updated_at),
       } as Course;
       if ("grade" in c) remote.grade = c.grade ?? null;
+      if ("color" in c) remote.color = c.color ?? null;
       if ("notified_two_left" in c) remote.notifiedTwoLeft = !!c.notified_two_left;
       if ("notified_limit" in c) remote.notifiedLimit = !!c.notified_limit;
       if ("last_weekly_notify_at" in c && c.last_weekly_notify_at) {

@@ -327,7 +327,8 @@ export async function getCourse(id: string): Promise<Course | undefined> {
 export async function addCourse(
   name: string,
   totalHours: number,
-  grade?: number | null
+  grade?: number | null,
+  color?: string | null
 ): Promise<Course> {
   const clientId = await getClientId();
   const sem = await ensureActiveSemester();
@@ -339,6 +340,7 @@ export async function addCourse(
     semesterId: sem.id,
     archived: false,
     grade: normalizeGrade(grade),
+    color: color ?? null,
     createdAt: now,
     updatedAt: now,
     clientId,
@@ -354,7 +356,7 @@ export async function addCourse(
 
 export async function updateCourse(
   id: string,
-  patch: Partial<Pick<Course, "name" | "totalHours" | "grade" | "notifiedTwoLeft" | "notifiedLimit" | "lastWeeklyNotifyAt">>
+  patch: Partial<Pick<Course, "name" | "totalHours" | "grade" | "color" | "notifiedTwoLeft" | "notifiedLimit" | "lastWeeklyNotifyAt">>
 ): Promise<Course | undefined> {
   const cur = await db().courses.get(id);
   if (!cur) return undefined;
