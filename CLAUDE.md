@@ -37,10 +37,11 @@ GMT logosu şimdilik yalnızca görsel, işlevi yok — bilinçli).
 
 | Veri | Buluta gider mi |
 |---|---|
-| Dersler, devamsızlık kayıtları, dönemler | Evet |
-| Projeler + yapılacaklar + hatırlatma eşikleri | Evet (migration 002'den sonra) |
-| Ders programı fotoğrafı / Excel dosyası | **Hayır — yalnızca cihazda** |
-| Tema, dil, tanıtım gösterildi bilgisi, avatar adresi | Hayır (cihaza özel) |
+| Dersler (+ renk, bildirim durumu), devamsızlık kayıtları, dönemler | Evet |
+| Projeler + yapılacaklar + hatırlatma eşikleri | Evet |
+| Ders programı fotoğrafı / Excel (Storage "schedules" bucket) | Kod hazır, **migration 003 bekliyor** |
+| Tema, dil (`user_prefs`) | Kod hazır, migration 006 bekliyor |
+| Bildirim izni, aktif dönem işaretçisi, avatar adresi | **Bilerek hayır** (cihaza özel; aktif dönemi buluta bağlamak eski "dersler görünmez oldu" hatasını geri getirir) |
 
 ## Supabase
 
@@ -58,6 +59,29 @@ GMT logosu şimdilik yalnızca görsel, işlevi yok — bilinçli).
 Geçmiş olay: `courses.grade` kolonu yokken pull, yereldeki sınıf etiketinin
 üstüne `null` yazıyordu ve etiket her açılışta kayboluyordu. Düzeltme:
 alan yalnızca bulut satırında **gerçekten varsa** taşınır (`"grade" in c`).
+
+### Migration durumu (supabase/migrations/)
+
+| # | İçerik | Durum |
+|---|---|---|
+| 001 | courses.grade, absence_records.note | Çalıştırıldı |
+| 002 | projects | Çalıştırıldı |
+| 003 | schedule_files + Storage bucket | **Bekliyor** (kullanıcı "şimdilik geç" dedi) |
+| 004 | push_subscriptions + courses bildirim kolonları | Çalıştırıldı |
+| 005 | courses.color | Bekliyor (isteğe bağlı) |
+| 006 | user_prefs (tema/dil) | Bekliyor (isteğe bağlı) |
+
+### Uygulama kapalıyken bildirim (web push)
+
+- `app/api/cron/notify/route.ts` + `vercel.json` (her gün 06:00 UTC = 09:00 TR).
+- **Kullanıcının Vercel'de yapması gereken (henüz yapılmadı):** Production
+  ortam değişkenleri `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` + Redeploy.
+- VAPID anahtarları üretildi: `...\Masaüstü\GMTapid-anahtarlari.json`
+  (repo dışında). Gizli anahtarı ekrana yazma.
+- Yerelde test: `CRON_SECRET=x npm run dev` → yetkisiz 401, eksik ortam
+  değişkeninde 500 + açıklama. Gerçek gönderim yalnızca canlıda denenebilir.
+- iPhone'da push için uygulamanın ana ekrana eklenmiş olması gerekir.
 
 ## Çalışma düzeni (kullanıcının beklentisi)
 
@@ -109,10 +133,13 @@ alan yalnızca bulut satırında **gerçekten varsa** taşınır (`"grade" in c`
 
 ## Sıradaki fikirler (kullanıcıyla konuşuldu)
 
-1. Ders programı dosyalarının buluta yedeklenmesi (Supabase Storage).
-2. Bildirimlerin uygulama kapalıyken de gelmesi (sunucu + web push).
-3. Elle haftalık ders programı → "bugünkü derslerin" + tek dokunuşla
+Yapıldı: projeler/program dosyaları yedekleme (003 bekliyor), web push,
+ders renkleri, tema/dil senkronu.
+
+Kalanlar:
+1. Elle haftalık ders programı → "bugünkü derslerin" + tek dokunuşla
    devamsızlık + ders öncesi hatırlatma.
-4. Küçükler: devamsızlık penceresinde 2/3 saat kısayolu, misafir için yedek
-   al/geri yükle, derslere renk, "bu hızla gidersen sınırı X'te doldurursun"
-   tahmini, Excel'den toplu ders ekleme (okuyucu `lib/sheet/xlsx.ts` hazır).
+2. Devamsızlık penceresinde 2/3 saat kısayolu (ya da derse varsayılan süre).
+3. "Bu hızla gidersen sınırı X'te doldurursun" tahmini.
+4. Excel'den toplu ders ekleme (okuyucu `lib/sheet/xlsx.ts` hazır).
+5. Misafir için yedek al / geri yükle.
