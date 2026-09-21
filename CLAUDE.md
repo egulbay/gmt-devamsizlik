@@ -77,7 +77,7 @@ alan yalnızca bulut satırında **gerçekten varsa** taşınır (`"grade" in c`
 - **Kullanıcının Vercel'de yapması gereken (henüz yapılmadı):** Production
   ortam değişkenleri `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
   `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` + Redeploy.
-- VAPID anahtarları üretildi: `...\Masaüstü\GMTapid-anahtarlari.json`
+- VAPID anahtarları üretildi: `...\Masaüstü\GMT\vapid-anahtarlari.json`
   (repo dışında). Gizli anahtarı ekrana yazma.
 - Yerelde test: `CRON_SECRET=x npm run dev` → yetkisiz 401, eksik ortam
   değişkeninde 500 + açıklama. Gerçek gönderim yalnızca canlıda denenebilir.
@@ -112,8 +112,9 @@ alan yalnızca bulut satırında **gerçekten varsa** taşınır (`"grade" in c`
   `CACHE = "gmt-cache-vN"` sürümünü artır.
 - Dexie şeması değişirse sürüm ekle; **var olan kullanıcının verisi
   kaybolmamalı** (gerçek bir v2 veritabanı kurup yükseltmeyi test et).
-- Bildirimler yalnızca **uygulama açıkken** değerlendiriliyor; telefona
-  kendiliğinden düşmüyor (sunucu tarafı yok). Kullanıcıya bunu doğru anlat.
+- Uygulama içi bildirim kontrolü yalnızca **uygulama açıkken** çalışır.
+  Kapalıyken bildirim sunucudaki günlük işe (web push) bağlı; Vercel ortam
+  değişkenleri ayarlanmadan o da çalışmaz. Kullanıcıya bunu doğru anlat.
 
 ## Tasarım kuralları
 
