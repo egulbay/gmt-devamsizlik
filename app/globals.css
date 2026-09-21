@@ -1260,15 +1260,28 @@ a {
   100% { transform: translateY(-7px) scale(1); }
 }
 
-/* Ortadaki GMT logosu: çubuktan yukarı taşan yuvarlak. Şimdilik işlevsiz. */
+/* Ortadaki GMT logosu: çubuktan yukarı taşan yuvarlak. Basınca
+   "Bağlantılar ve Panolar" merkezini açar. */
 .tab-center {
   flex: 0 0 66px;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  pointer-events: none;
   position: relative;
+  /* buton varsayılanlarını sıfırla: görünüm eskisiyle birebir aynı kalsın */
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.tab-center img { transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease; }
+.tab-center:active img { transform: scale(0.92); }
+/* Seçiliyken kenarlık marka rengine döner (koyu temada da yalnızca ince bir
+   çizgi — renkli gölge yok). */
+.tab-center.on img { border-color: var(--accent); }
+.tab-center:focus-visible img { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Çerçevenin YALNIZCA çubuk çizgisinin üstünde kalan yayı görünür: daire
    çizilir, çizginin altında kalan kısmı kırpılır. Böylece çubuğun üst çizgisi
    logonun etrafından dolanıp geçiyormuş gibi durur. */
@@ -1304,7 +1317,7 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tab-ic, .tab-lbl { transition: none; }
+  .tab-ic, .tab-lbl, .tab-center img { transition: none; }
   .tab-btn.on .tab-ic { animation: none; }
 }
 /* Çubuk varken içerik ve + butonu çubuğun altında kalmasın. */
@@ -1579,3 +1592,69 @@ a {
 .thm-dark [data-color="blue"]   { --c: #6aa2dc; }
 .thm-dark [data-color="purple"] { --c: #a68adb; }
 .thm-dark [data-color="pink"]   { --c: #e189b5; }
+
+/* ---- Bağlantılar ve Panolar merkezi ---- */
+.hub-guest {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+  padding: 0 24px 120px;
+}
+.hub-guest-ic {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.hub-guest-ic svg { width: 30px; height: 30px; }
+.hub-guest-btn {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-left: 26px;
+  padding-right: 26px;
+}
+.hub-guest-btn svg { width: 18px; height: 18px; }
+.hub-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+  background: var(--track);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.hub-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hub-chip {
+  border: 1px solid var(--border);
+  background: var(--track);
+  color: var(--sub);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 11px;
+  border-radius: 999px;
+}
+.hub-chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.hub-soon {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sub);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+.set-btn:disabled { opacity: 0.45; }

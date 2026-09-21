@@ -23,8 +23,9 @@ import { Calendar } from "./Calendar";
 import { BellIcon, BookIcon, CalendarIcon, CheckIcon, CloseIcon, GoogleIcon, InfoIcon, MoonIcon, PersonIcon, PlusIcon, ProjectsIcon, SettingsIcon, ShareIcon, SheetIcon, ImageIcon, SunIcon, TrashIcon } from "./icons";
 import ScheduleViewer from "./ScheduleViewer";
 import SheetViewer from "./SheetViewer";
+import Hub from "./hub/Hub";
 
-type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings";
+type Screen = "login" | "guestName" | "home" | "detail" | "projects" | "schedule" | "settings" | "hub";
 type SortMode = "default" | "near" | "name" | "grade";
 
 // Sınıf seçici tekerleğinin seçenekleri. İlk sıradaki null "belirtilmedi" —
@@ -460,13 +461,15 @@ export default function App() {
         screenRef.current === "detail" ||
         screenRef.current === "projects" ||
         screenRef.current === "schedule" ||
-        screenRef.current === "settings";
+        screenRef.current === "settings" ||
+        screenRef.current === "hub";
       if (
         scr !== "detail" &&
         scr !== "projects" &&
         scr !== "schedule" &&
         scr !== "schedule-view" &&
         scr !== "settings" &&
+        scr !== "hub" &&
         isOverlay
       ) {
         setSelectedCourseId(null);
@@ -637,7 +640,9 @@ export default function App() {
   // çıkar — Android'deki alışılmış davranış. Çubuk yalnızca sekme köklerinde
   // görünür (detay/düzenleme katmanlarında gizli), dolayısıyla üstteki kayıt
   // her zaman ya taban ya da bir sekme kaydıdır.
-  const TAB_SCREENS = ["projects", "schedule", "settings"] as const;
+  // Ortadaki GMT logosu da bir sekme gibi davranır ("hub"): geri tuşu
+  // oradan da önce Derslerim'e döner.
+  const TAB_SCREENS = ["projects", "schedule", "settings", "hub"] as const;
   type TabScreen = "home" | (typeof TAB_SCREENS)[number];
   const goTab = (target: TabScreen) => {
     if (target === screen) {
@@ -1144,7 +1149,7 @@ export default function App() {
   // Alt çubuk yalnızca sekme köklerinde: ders/proje detayında ve uzun-basma
   // düzenleme modlarında gizlenir (oralarda kendi geri/bitti kontrolleri var).
   const showNav =
-    (screen === "home" || screen === "projects" || screen === "schedule" || screen === "settings") &&
+    (screen === "home" || screen === "projects" || screen === "schedule" || screen === "settings" || screen === "hub") &&
     !editMode &&
     !projectEditMode &&
     !(screen === "projects" && selectedProjectId);
@@ -1220,6 +1225,9 @@ export default function App() {
         {screen === "projects" && renderProjects()}
         {screen === "schedule" && renderSchedule()}
         {screen === "settings" && renderSettings()}
+        {screen === "hub" && (
+          <Hub t={t} settings={settings} online={online} onLogin={() => void loginGoogle()} showToast={showToast} />
+        )}
 
         {toast && (
           <div className="notif-toast" role="status">
@@ -1231,7 +1239,7 @@ export default function App() {
           </div>
         )}
 
-        {!online && !settings.isGuest && screen !== "login" && screen !== "guestName" && (
+        {!online && !settings.isGuest && screen !== "login" && screen !== "guestName" && screen !== "hub" && (
           <div className="offline-strip" role="status">{t.offlineNotice}</div>
         )}
         {showNav && renderTabBar()}
@@ -1780,12 +1788,16 @@ export default function App() {
     return (
       <nav className="tab-bar" aria-label="navigation">
         {tabs.slice(0, 2).map(tabBtn)}
-        {/* Ortadaki logo şimdilik yalnızca görsel: bir işlevi yok, bu yüzden
-            buton değil (basılabilir görünüp hiçbir şey yapmasın istemiyoruz). */}
-        <div className="tab-center" aria-hidden="true">
+        {/* Ortadaki logo "Bağlantılar ve Panolar" merkezini açar. */}
+        <button
+          className={`tab-center${screen === "hub" ? " on" : ""}`}
+          aria-label={t.hubNav}
+          aria-current={screen === "hub" ? "page" : undefined}
+          onClick={() => goTab("hub")}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icons/gmt-logo-nav.png" alt="" />
-        </div>
+        </button>
         {tabs.slice(2).map(tabBtn)}
       </nav>
     );
