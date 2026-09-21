@@ -114,7 +114,16 @@ function toCloud(table: keyof typeof TABLE_MAP, row: unknown, userId: string): R
 // Bu yüzden senkronizasyon migration'dan BAĞIMSIZ çalışmalı: sütun yoksa
 // tespit edip bu alanları düşürerek devam ediyoruz. Migration sonradan
 // çalıştırılırsa (sayfa yenilenince) alanlar yeniden gönderilmeye başlar.
-let optionalColsMissing = false;
+//
+// YALNIZCA GERÇEKTEN EKSİK OLAN KOLON düşürülür. Eskiden tek bir eksik kolon
+// (ör. migration 005 çalıştırılmadığı için "color") TÜM isteğe bağlı
+// alanları düşürtüyordu: sınıf (grade) da buluta hiç yazılmıyor, açılışta
+// buluttaki eski boş değer yereldekinin üstüne geliyor ve sınıf etiketi
+// yine siliniyordu. Kolon bazında takip bunu engeller.
+const missingCols = new Set<string>();
+// Hata mesajından kolon adı çıkarılamazsa eski davranışa (hepsini düşür)
+// dönülür; veri kuyrukta takılıp kalmasın diye.
+let allOptionalMissing = false;
 
 // Sonradan eklenen, migration gerektiren kolonlar. Supabase'de yoksa bunları
 // düşürüp kaydı yine de gönderiyoruz ki veri kuyrukta takılıp kalmasın.
@@ -129,8 +138,20 @@ const OPTIONAL_COLS = [
 
 function stripOptionalCols(row: Record<string, unknown>): Record<string, unknown> {
   const rest = { ...row };
-  for (const k of OPTIONAL_COLS) delete rest[k];
+  for (const k of OPTIONAL_COLS) {
+    if (allOptionalMissing || missingCols.has(k)) delete rest[k];
+  }
   return rest;
+}
+
+// "Could not find the 'color' column of 'courses'…" (PGRST204) ya da
+// "column courses.color does not exist" / 'column "color" of relation …' (42703)
+function missingColName(e: unknown): string | null {
+  const msg = String((e as { message?: string } | null)?.message ?? "");
+  const m =
+    msg.match(/could not find the '([a-z_]+)' column/i) ||
+    msg.match(/column "?(?:[a-z_]+\.)?([a-z_]+)"? (?:of relation .* )?does not exist/i);
+  return m ? m[1] : null;
 }
 
 function isUnknownColumnError(e: unknown): boolean {
@@ -192,22 +213,21 @@ export async function flushSyncQueue(): Promise<void> {
       const cloudRow = toCloud(op.table, op.payload, settings.userId);
       const tableName = TABLE_MAP[op.table];
       // Upsert works for both create/update and soft-delete (deleted flag).
-      let { error } = await client
-        .from(tableName)
-        .upsert(optionalColsMissing ? stripOptionalCols(cloudRow) : cloudRow, { onConflict: "id" });
-      // Sütunlar yoksa (migration çalıştırılmamış) kaydı KAYBETME: isteğe
-      // bağlı alanları düşürüp tekrar dene. Aksi halde ders sonsuza dek
-      // kuyrukta kalır ve profil sıfırlanınca yok olur.
-      if (error && !optionalColsMissing && isUnknownColumnError(error)) {
-        optionalColsMissing = true;
-        console.warn(
-          "[sync] Supabase'de grade/note sütunu yok (migration çalıştırılmamış). " +
-            "Bu alanlar olmadan senkronize ediliyor; sınıf ve açıklama buluta yazılmayacak. " +
-            "supabase/migrations/001_add_course_grade_and_record_note.sql dosyasını çalıştırın.",
-        );
-        ({ error } = await client
-          .from(tableName)
-          .upsert(stripOptionalCols(cloudRow), { onConflict: "id" }));
+      let { error } = await client.from(tableName).upsert(stripOptionalCols(cloudRow), { onConflict: "id" });
+      // Kolon yoksa (migration çalıştırılmamış) kaydı KAYBETME: yalnızca o
+      // kolonu düşürüp tekrar dene. Birden fazla kolon eksikse her turda bir
+      // tanesi bulunur; tur sayısı isteğe bağlı kolon sayısıyla sınırlı.
+      for (let i = 0; error && isUnknownColumnError(error) && i <= OPTIONAL_COLS.length; i++) {
+        const col = missingColName(error);
+        if (col && OPTIONAL_COLS.includes(col) && !missingCols.has(col)) {
+          missingCols.add(col);
+        } else if (!allOptionalMissing) {
+          allOptionalMissing = true;
+        } else {
+          break;
+        }
+        console.warn(`[sync] Supabase'de '${col ?? "?"}' sütunu yok (migration çalıştırılmamış); bu alan olmadan senkronize ediliyor.`);
+        ({ error } = await client.from(tableName).upsert(stripOptionalCols(cloudRow), { onConflict: "id" }));
       }
       if (error && op.table === "projects" && isMissingTableError(error)) {
         // Tablo yok: bu oturumda projeleri atla, kaydı kuyrukta bırak.
