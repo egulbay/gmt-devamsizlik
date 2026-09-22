@@ -85,7 +85,23 @@ export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [screen, setScreen] = useState<Screen>("login");
   const [authError, setAuthError] = useState<string | null>(null);
+  // Davet linkiyle gelindiyse (?c=GMT-...) koddur. Adres çubuğu giriş
+  // sırasında temizlendiği için değeri İLK render'da yakalıyoruz.
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const inviteRef = useRef<string | null>(null);
   const [homeTab, setHomeTab] = useState<"active" | "past">("active");
+
+  useEffect(() => {
+    try {
+      const c = new URLSearchParams(window.location.search).get("c");
+      if (c) {
+        setInviteCode(c);
+        inviteRef.current = c;
+      }
+    } catch {
+      /* adres okunamadıysa önemli değil */
+    }
+  }, []);
 
   const [activeVMs, setActiveVMs] = useState<CourseVM[]>([]);
   const [recordsByCourse, setRecordsByCourse] = useState<Record<string, AbsenceRecord[]>>({});
@@ -306,7 +322,8 @@ export default function App() {
         }
         await reload();
         if (cancelled) return;
-        setScreen("home");
+        // Davet linkiyle gelindiyse doğrudan merkezi aç.
+        setScreen(inviteRef.current ? "hub" : "home");
         setReady(true);
       };
 
@@ -340,7 +357,7 @@ export default function App() {
         await reload();
         const s2 = await repo.getSettings();
         if (cancelled) return;
-        setScreen(s2.userName ? "home" : "login");
+        setScreen(s2.userName ? (inviteRef.current && !s2.isGuest ? "hub" : "home") : "login");
         setReady(true);
       }
 
@@ -590,7 +607,10 @@ export default function App() {
       // internally in every framework's official example.
       const { error } = await client.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: {
+          // Davet linkiyle gelinmişse kod dönüşte de adreste olsun.
+          redirectTo: window.location.origin + (inviteRef.current ? `/?c=${encodeURIComponent(inviteRef.current)}` : ""),
+        },
       });
       if (error) {
         setAuthError((lang === "tr" ? "Giriş hatası: " : "Sign-in error: ") + error.message);
@@ -1226,7 +1246,25 @@ export default function App() {
         {screen === "schedule" && renderSchedule()}
         {screen === "settings" && renderSettings()}
         {screen === "hub" && (
-          <Hub t={t} settings={settings} online={online} onLogin={() => void loginGoogle()} showToast={showToast} />
+          <Hub
+            t={t}
+            settings={settings}
+            online={online}
+            onLogin={() => void loginGoogle()}
+            showToast={showToast}
+            initialCode={inviteCode}
+            onInviteConsumed={() => {
+              setInviteCode(null);
+              inviteRef.current = null;
+              // Kod adres çubuğunda kalmasın: sayfa yenilenince aynı kişiyi
+              // tekrar aramasın, paylaşılan ekran görüntüsünde görünmesin.
+              try {
+                window.history.replaceState(window.history.state, "", window.location.pathname);
+              } catch {
+                /* önemsiz */
+              }
+            }}
+          />
         )}
 
         {toast && (
