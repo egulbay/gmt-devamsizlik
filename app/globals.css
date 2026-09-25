@@ -1717,3 +1717,64 @@ a {
   text-align: center;
   padding: 16px 24px max(24px, env(safe-area-inset-bottom));
 }
+
+/* ---- Panolar ---- */
+.hub-chip.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.hub-chip.tiny { font-size: 11px; padding: 3px 8px; }
+.hub-chip:disabled { opacity: 0.45; }
+
+.board-progress { display: flex; flex-direction: column; gap: 6px; }
+.board-progress .bar { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.board-progress .fill { height: 100%; background: var(--accent); transition: width 0.25s ease; }
+
+.board-list { display: flex; flex-direction: column; gap: 8px; }
+.board-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  color: var(--text);
+  font: inherit;
+}
+.board-card-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.board-card-body .done { text-decoration: line-through; opacity: 0.6; }
+.board-card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* Durum düğmesi: dokununca bir sonraki adıma geçer (mobilde sürükleme yok). */
+.board-check {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--sub);
+}
+.board-check.st-doing { border-color: var(--accent); color: var(--accent); }
+.board-check.st-done { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Kanban: telefonda yatay kaydırılır, masaüstünde üç sütun yan yana. */
+.kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+.kanban-col {
+  flex: 0 0 78%;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--track);
+  border-radius: var(--radius-card);
+  padding: 10px;
+  min-height: 120px;
+}
+.kanban-head { color: var(--sub); text-transform: uppercase; letter-spacing: 0.04em; }
+@media (min-width: 720px) {
+  .kanban-col { flex: 1 1 0; }
+}

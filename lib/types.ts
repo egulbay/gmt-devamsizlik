@@ -120,6 +120,61 @@ export interface Settings {
 }
 
 // Sync queue entry (offline yazma kuyruğu)
+// ---------------------------------------------------------------- panolar --
+// Ortak çalışma alanları, panolar ve kartlar. Bunlar devamsızlık verisinden
+// TAMAMEN ayrı durur; panodaki kimse dersini ya da devamsızlığını görmez.
+
+export type BoardRole = "owner" | "admin" | "member";
+export type CardStatus = "todo" | "doing" | "done";
+
+export interface Workspace {
+  id: string;
+  name: string;
+  myRole: BoardRole;
+  updatedAt: number;
+  deleted: boolean;
+}
+
+export interface Board {
+  id: string;
+  workspaceId: string;
+  name: string;
+  viewMode: "list" | "kanban";
+  updatedAt: number;
+  deleted: boolean;
+}
+
+export interface Card {
+  id: string;
+  boardId: string;
+  title: string;
+  notes?: string | null;
+  status: CardStatus;
+  dueDate?: string | null; // "YYYY-MM-DD"
+  position: number;
+  assignees: string[]; // kullanıcı id'leri
+  completedBy?: string | null;
+  completedAt?: number | null;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  clientId: string;
+  deleted: boolean;
+}
+
+// Pano işlemleri de çevrimdışıyken kuyrukta bekler. Kart güncellemelerinde
+// yalnızca DEĞİŞEN alanlar gönderilir: iki kişi aynı kartın farklı
+// alanlarını değiştirdiğinde ikisinin de değişikliği korunur.
+export interface BoardOp {
+  id?: number;
+  table: "workspaces" | "boards" | "cards";
+  rowId: string;
+  op: "insert" | "patch" | "delete";
+  fields?: string[];
+  payload: unknown;
+  createdAt: number;
+}
+
 export interface SyncOp {
   id?: number; // autoincrement
   table: "courses" | "records" | "semesters" | "projects";

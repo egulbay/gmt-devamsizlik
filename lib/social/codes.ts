@@ -9,6 +9,9 @@ export interface CodeMatch {
   userId: string;
   displayName: string;
   avatarUrl: string | null;
+  // Aramızdaki durum: bağlı mıyız, istek bekliyor mu? Arayüz buna göre
+  // "İstek Gönder" mi yoksa "istek gönderildi" mi göstereceğine karar verir.
+  relation?: "none" | "connected" | "outgoing" | "incoming";
 }
 
 // Hız sınırına takılmak ayrı bir durum: kullanıcıya "biraz bekle" demeliyiz.
@@ -54,12 +57,25 @@ export async function lookupCode(code: string, myCode: string | null): Promise<S
     if (rpcError(error)) return { ok: true, data: { kind: "rateLimited" } };
     return { ok: false, error: classify(error) };
   }
-  const rows = (data ?? []) as { user_id: string; display_name: string; avatar_url: string | null }[];
+  const rows = (data ?? []) as {
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    relation?: string;
+  }[];
   if (!rows.length) return { ok: true, data: { kind: "notFound" } };
   const r = rows[0];
   return {
     ok: true,
-    data: { kind: "found", match: { userId: r.user_id, displayName: r.display_name, avatarUrl: r.avatar_url } },
+    data: {
+      kind: "found",
+      match: {
+        userId: r.user_id,
+        displayName: r.display_name,
+        avatarUrl: r.avatar_url,
+        relation: (r.relation as CodeMatch["relation"]) ?? "none",
+      },
+    },
   };
 }
 

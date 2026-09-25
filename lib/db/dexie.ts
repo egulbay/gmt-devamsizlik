@@ -1,5 +1,5 @@
 import Dexie, { type Table } from "dexie";
-import type { Course, AbsenceRecord, Semester, Settings, SyncOp, Project, ScheduleFile } from "../types";
+import type { Course, AbsenceRecord, Semester, Settings, SyncOp, Project, ScheduleFile, Workspace, Board, Card, BoardOp } from "../types";
 
 // Offline-first local store. All user data lives here (IndexedDB) — never in
 // localStorage, per the architecture rules.
@@ -11,6 +11,10 @@ export class GmtDexie extends Dexie {
   syncQueue!: Table<SyncOp, number>;
   projects!: Table<Project, string>;
   scheduleImages!: Table<ScheduleFile, string>;
+  workspaces!: Table<Workspace, string>;
+  boards!: Table<Board, string>;
+  cards!: Table<Card, string>;
+  boardQueue!: Table<BoardOp, number>;
 
   constructor() {
     super("gmt-devamsizlik");
@@ -30,6 +34,15 @@ export class GmtDexie extends Dexie {
     // v3: ders programı fotoğrafları (yalnızca yerel, senkronize edilmez).
     this.version(3).stores({
       scheduleImages: "id, createdAt",
+    });
+    // v4: ortak panolar. Çevrimdışıyken de okunup yazılabilsin diye buraya
+    // kopyalanır; kuyruk (boardQueue) bağlanınca gönderir. Var olan tablolar
+    // Dexie tarafından devralınır — kullanıcının mevcut verisi etkilenmez.
+    this.version(4).stores({
+      workspaces: "id, updatedAt, deleted",
+      boards: "id, workspaceId, updatedAt, deleted",
+      cards: "id, boardId, status, updatedAt, deleted",
+      boardQueue: "++id, table, rowId, createdAt",
     });
   }
 }
