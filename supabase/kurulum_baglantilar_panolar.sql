@@ -708,13 +708,13 @@ create table if not exists public.board_course_links (
 create or replace function public.board_role(p_board uuid, p_user uuid)
 returns text language sql stable security definer set search_path = '' as $$
   select case
-    when max(rank) = 3 then 'owner'
-    when max(rank) = 2 then 'admin'
-    when max(rank) = 1 then 'member'
+    when max(lvl) = 3 then 'owner'
+    when max(lvl) = 2 then 'admin'
+    when max(lvl) = 1 then 'member'
     else null
   end
   from (
-    select case wm.role when 'owner' then 3 when 'admin' then 2 else 1 end as rank
+    select case wm.role when 'owner' then 3 when 'admin' then 2 else 1 end as lvl
       from public.boards b
       join public.workspace_members wm on wm.workspace_id = b.workspace_id
      where b.id = p_board and wm.user_id = p_user and b.deleted = false
@@ -1148,12 +1148,15 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 -- "Bana atananlar": tüm panolardaki açık kartlarım, pano adıyla.
+-- NOT: Dönüş listesinde "position" adı KULLANILAMAZ — PostgreSQL'de position()
+-- bir işlev adı olduğu için orada sözdizimi hatası veriyor. Sıra bilgisine
+-- bu ekranda zaten gerek yok; yalnızca sıralamak için kullanılıyor.
 create or replace function public.my_assigned_cards()
 returns table (
   card_id uuid, board_id uuid, board_name text, title text,
-  status text, due_date date, position double precision
+  status text, due_date date
 ) language sql stable security definer set search_path = '' as $$
-  select c.id, c.board_id, b.name, c.title, c.status, c.due_date, c.position
+  select c.id, c.board_id, b.name, c.title, c.status, c.due_date
     from public.card_assignees a
     join public.cards c on c.id = a.card_id
     join public.boards b on b.id = c.board_id

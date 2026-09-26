@@ -208,12 +208,15 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 -- "Bana atananlar": tüm panolardaki açık kartlarım, pano adıyla.
+-- NOT: Dönüş listesinde "position" adı KULLANILAMAZ — PostgreSQL'de position()
+-- bir işlev adı olduğu için orada sözdizimi hatası veriyor. Sıra bilgisine
+-- bu ekranda zaten gerek yok; yalnızca sıralamak için kullanılıyor.
 create or replace function public.my_assigned_cards()
 returns table (
   card_id uuid, board_id uuid, board_name text, title text,
-  status text, due_date date, position double precision
+  status text, due_date date
 ) language sql stable security definer set search_path = '' as $$
-  select c.id, c.board_id, b.name, c.title, c.status, c.due_date, c.position
+  select c.id, c.board_id, b.name, c.title, c.status, c.due_date
     from public.card_assignees a
     join public.cards c on c.id = a.card_id
     join public.boards b on b.id = c.board_id

@@ -4,8 +4,8 @@
     {
       "name": "gmt-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeArgs": ["run", "dev", "--", "-p", "3140"],
+      "port": 3140
     }
   ]
 }

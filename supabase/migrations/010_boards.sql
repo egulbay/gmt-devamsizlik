@@ -120,13 +120,13 @@ create table if not exists public.board_course_links (
 create or replace function public.board_role(p_board uuid, p_user uuid)
 returns text language sql stable security definer set search_path = '' as $$
   select case
-    when max(rank) = 3 then 'owner'
-    when max(rank) = 2 then 'admin'
-    when max(rank) = 1 then 'member'
+    when max(lvl) = 3 then 'owner'
+    when max(lvl) = 2 then 'admin'
+    when max(lvl) = 1 then 'member'
     else null
   end
   from (
-    select case wm.role when 'owner' then 3 when 'admin' then 2 else 1 end as rank
+    select case wm.role when 'owner' then 3 when 'admin' then 2 else 1 end as lvl
       from public.boards b
       join public.workspace_members wm on wm.workspace_id = b.workspace_id
      where b.id = p_board and wm.user_id = p_user and b.deleted = false
