@@ -24,6 +24,7 @@ import {
   createInvite,
   revokeInvite,
   boardActivity,
+  pendingBoardOps,
   type BoardPerson,
   type ActivityEntry,
 } from "@/lib/social/boards";
@@ -332,12 +333,16 @@ function BoardView({
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [askDeleteBoard, setAskDeleteBoard] = useState(false);
+  // Buluta gönderilemeyen değişiklik sayısı. Sıfırdan büyükse kullanıcı
+  // bunu GÖRMELİ: sessiz kalırsa kartlar kaybolmuş gibi görünüyor.
+  const [pending, setPending] = useState(0);
 
   const myRole = people.find((p) => p.userId === userId)?.role ?? null;
   const canManage = myRole === "owner" || myRole === "admin";
 
   const reload = useCallback(async () => {
     setCards(await localCards(board.id));
+    setPending(await pendingBoardOps());
   }, [board.id]);
 
   useEffect(() => {
@@ -450,6 +455,22 @@ function BoardView({
           {t.hubViewKanban}
         </button>
       </div>
+
+      {pending > 0 && (
+        <div className="hub-note" role="status">
+          <div className="fs13">{t.hubPending(pending)}</div>
+          <button
+            className="set-btn"
+            disabled={!online}
+            onClick={async () => {
+              await syncBoards();
+              await reload();
+            }}
+          >
+            {t.hubRetrySync}
+          </button>
+        </div>
+      )}
 
       <div className="board-progress">
         <div className="bar"><div className="fill" style={{ width: `${pct}%` }} /></div>

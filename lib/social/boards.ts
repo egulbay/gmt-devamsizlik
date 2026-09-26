@@ -1,4 +1,4 @@
-import { db, newId, getClientId } from "../db/dexie";
+import { db, getClientId } from "../db/dexie";
 import { getSettings } from "../db/repo";
 import { supabase } from "../sync/supabaseClient";
 import { classify, type SocialError, type SocialResult } from "./profile";
@@ -85,7 +85,9 @@ export async function createCard(
   const clientId = await getClientId();
   const existing = await localCards(boardId);
   const card: Card = {
-    id: newId("card"),
+    // Sunucudaki "id" sütunu uuid: "card_..." gibi bir kimlik gönderilince
+    // kayıt sessizce reddediliyor ve kart telefonda kuyrukta kalıyordu.
+    id: crypto.randomUUID(),
     boardId,
     title: title.trim().slice(0, 200),
     notes: extra?.notes?.trim() || null,
@@ -379,6 +381,39 @@ function cardToCloud(c: Card): Record<string, unknown> {
 }
 
 let flushing = false;
+let lastBoardSyncError: string | null = null;
+
+export function boardSyncError(): string | null {
+  return lastBoardSyncError;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Sürüm düzeltmesi: ilk sürümde kart kimlikleri "card_<uuid>" biçimindeydi ve
+// sunucu bunları kabul etmiyordu. O kartlar telefonda kuyrukta kalmış olabilir;
+// kimliklerini uuid'ye çevirip gönderilebilir hale getiriyoruz. Kartın içeriği
+// ve hangi panoya ait olduğu değişmiyor.
+async function fixLegacyCardIds(): Promise<void> {
+  const bad = (await db().cards.toArray()).filter((c) => !UUID_RE.test(c.id));
+  for (const card of bad) {
+    const fresh = crypto.randomUUID();
+    await db().cards.delete(card.id);
+    await db().cards.put({ ...card, id: fresh });
+    const ops = await db().boardQueue.where("rowId").equals(card.id).toArray();
+    for (const op of ops) {
+      if (op.id == null) continue;
+      await db().boardQueue.update(op.id, {
+        rowId: fresh,
+        payload: { ...(op.payload as Card), id: fresh },
+      });
+    }
+  }
+}
+
+// Gönderilmeyi bekleyen işlem sayısı (arayüz "bekliyor" uyarısı için).
+export async function pendingBoardOps(): Promise<number> {
+  return db().boardQueue.count();
+}
 
 export async function flushBoardQueue(): Promise<void> {
   const c = supabase();
@@ -387,6 +422,7 @@ export async function flushBoardQueue(): Promise<void> {
   if (settings.isGuest || !settings.userId) return;
   flushing = true;
   try {
+    await fixLegacyCardIds();
     const ops = await db().boardQueue.orderBy("createdAt").toArray();
     for (const op of ops) {
       if (op.table !== "cards") {
@@ -416,8 +452,12 @@ export async function flushBoardQueue(): Promise<void> {
       }
       if (op.id != null) await db().boardQueue.delete(op.id);
     }
+    lastBoardSyncError = null;
   } catch (e) {
-    // Kuyrukta bırak: bağlanınca / yeniden denerken gönderilir.
+    // Kuyrukta bırak: bağlanınca / yeniden denerken gönderilir. Hata yalnızca
+    // konsola düşerse kimse fark etmiyor; arayüzün gösterebilmesi için
+    // saklıyoruz (kartların sessizce kaybolduğu hatayı böyle yakaladık).
+    lastBoardSyncError = (e as { message?: string })?.message ?? String(e);
     console.warn("[panolar] gönderilemedi, tekrar denenecek:", e);
   } finally {
     flushing = false;
