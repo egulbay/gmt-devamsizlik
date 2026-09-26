@@ -79,6 +79,9 @@ export default function Boards({
   const statusLabel = (s: CardStatus) =>
     s === "todo" ? t.hubStatusTodo : s === "doing" ? t.hubStatusDoing : t.hubStatusDone;
 
+  // Çalışma alanı görünmeyen panolar (yalnızca o panoya davet edilmişsin).
+  const orphanBoards = boards.filter((b) => !workspaces.some((w) => w.id === b.workspaceId));
+
   if (openBoard) {
     return (
       <BoardView
@@ -154,7 +157,25 @@ export default function Boards({
     <>
       {!online && <div className="hub-note fs13">{t.hubOfflineBoards}</div>}
 
-      {workspaces.length === 0 && <div className="fs13 sub">{t.hubNoWorkspaces}</div>}
+      {workspaces.length === 0 && orphanBoards.length === 0 && (
+        <div className="fs13 sub">{t.hubNoWorkspaces}</div>
+      )}
+
+      {/* Yalnızca TEK BİR PANOYA davet edildiysen o panonun çalışma alanını
+          görmüyor olabilirsin. Pano yine de kaybolmasın diye ayrı bir başlık
+          altında listeleniyor. */}
+      {orphanBoards.length > 0 && (
+        <div className="set-group">
+          <div className="set-title">{t.hubSharedBoards}</div>
+          {orphanBoards.map((b) => (
+            <button key={b.id} className="set-row set-link" onClick={() => setOpenBoard(b)}>
+              <span className="set-ic">📋</span>
+              <div className="set-row-text fw7 fs14">{b.name}</div>
+              <span className="set-chev">›</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {workspaces.map((w) => {
         const wsBoards = boards.filter((b) => b.workspaceId === w.id);
