@@ -220,12 +220,26 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let authSub: { unsubscribe: () => void } | null = null;
+    let retryAuthOnline: (() => void) | null = null;
     (async () => {
       await registerServiceWorker();
       const s = await repo.getSettings();
       if (cancelled) return;
       setSettings(s);
       setNotifPerm(notificationsSupported() ? notifPermission() : "denied");
+
+      // ÇEVRİMDIŞI AÇILIŞ: ekranı buluta BAĞLAMA. Yereldeki veri (dersler,
+      // devamsızlıklar, projeler) zaten cihazda; önce onu göster, oturum
+      // kontrolü arka planda sürsün.
+      //
+      // Eskiden açılış, Supabase'in getSession() çağrısını BEKLİYORDU.
+      // İnternet yokken o çağrı (süresi dolmuş jetonu yenilemeye çalıştığı
+      // için) takılıyor ve uygulama gri iskelet ekranında kalıyordu:
+      // "çevrimdışı çalışmıyor" şikâyetinin sebebi buydu.
+      await reload();
+      if (cancelled) return;
+      setScreen(s.userName ? "home" : "login");
+      setReady(true);
 
       // If we just landed back from Google/Supabase with an error (e.g. a
       // misconfigured redirect URL, a cancelled consent, or a mismatched
@@ -321,17 +335,45 @@ export default function App() {
           });
           authSub = res.data.subscription;
 
-          try {
-            const { data, error } = await client.auth.getSession();
-            if (error) {
-              setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + error.message);
-            } else if (data.session?.user && !handledInitialSession) {
-              handledInitialSession = true;
-              await applySignedInSession(data.session.user, window.location.hash.includes("access_token"));
+          // Oturum kontrolü arayüzü ASLA kilitlememeli: 6 saniyede dönmezse
+          // (çevrimdışı ya da çok yavaş bağlantı) bekleme bırakılır.
+          // Uygulama zaten yereldeki veriyle açılmış durumda.
+          const restoreSession = async () => {
+            try {
+              const result = await Promise.race([
+                client.auth.getSession(),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+              ]);
+              if (!result) {
+                console.warn("[auth] oturum kontrolü zaman aşımına uğradı (çevrimdışı olabilir)");
+                return;
+              }
+              const { data, error } = result;
+              if (error) {
+                // Çevrimdışıyken bu beklenen bir durum; kullanıcıyı
+                // gereksiz hata mesajıyla korkutmuyoruz.
+                if (navigator.onLine) {
+                  setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + error.message);
+                }
+              } else if (data.session?.user && !handledInitialSession) {
+                handledInitialSession = true;
+                await applySignedInSession(data.session.user, window.location.hash.includes("access_token"));
+              }
+            } catch (e) {
+              if (navigator.onLine) {
+                setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + String(e));
+              }
             }
-          } catch (e) {
-            setAuthError((lang === "tr" ? "Oturum hatası: " : "Session error: ") + String(e));
-          }
+          };
+
+          await restoreSession();
+
+          // Bağlantı geri geldiğinde oturumu bir kez daha dene: çevrimdışı
+          // açılan uygulama, internet gelince kendiliğinden senkronlansın.
+          retryAuthOnline = () => {
+            if (!handledInitialSession) void restoreSession();
+          };
+          window.addEventListener("online", retryAuthOnline);
         }
       }
 
@@ -355,6 +397,7 @@ export default function App() {
     return () => {
       cancelled = true;
       authSub?.unsubscribe?.();
+      if (retryAuthOnline) window.removeEventListener("online", retryAuthOnline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
