@@ -255,7 +255,8 @@ export default function App() {
       // "çevrimdışı çalışmıyor" şikâyetinin sebebi buydu.
       await reload();
       if (cancelled) return;
-      setScreen(s.userName ? "home" : "login");
+      // Davet linkiyle gelindiyse doğrudan merkezi aç.
+      setScreen(s.userName ? (inviteRef.current && !s.isGuest ? "hub" : "home") : "login");
       setReady(true);
 
       // If we just landed back from Google/Supabase with an error (e.g. a
